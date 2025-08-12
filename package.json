@@ -9,6 +9,7 @@
     "seed": "tsx scripts/seed.ts"
   },
   "dependencies": {
+    "@supabase/auth-helpers-nextjs": "^0.10.0",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.54.0",
     "apify-client": "^2.14.0",
