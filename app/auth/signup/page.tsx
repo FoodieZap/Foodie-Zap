@@ -1,6 +1,6 @@
 'use client'
 
-import { FormEvent, useState } from 'react'
+import { FormEvent, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 
@@ -12,6 +12,15 @@ export default function SignupPage() {
   const [msg, setMsg] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  useEffect(() => {
+    async function checkSession() {
+      const { data } = await supabase.auth.getUser()
+      if (data.user) {
+        router.replace('/dashboard')
+      }
+    }
+    checkSession()
+  }, [router])
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
     setError(null)
@@ -23,7 +32,7 @@ export default function SignupPage() {
 
     // If email confirmation is disabled, you’ll get a session immediately.
     if (data?.session) {
-      router.push('/auth/dashboard')
+      router.push('/dashboard')
     } else {
       setMsg('Check your email to confirm your account.')
     }
