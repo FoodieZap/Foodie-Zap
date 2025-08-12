@@ -1,9 +1,8 @@
-import type { NextRequest } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import { type CookieOptions, createServerClient } from '@supabase/ssr'
-import { NextResponse } from 'next/server'
 
-export async function middleware(request: NextRequest) {
-  // Pass headers so Supabase can refresh tokens
+export async function updateSession(request: NextRequest) {
+  // Pass headers through so Supabase can refresh tokens
   let response = NextResponse.next({ request: { headers: request.headers } })
 
   const supabase = createServerClient(
@@ -26,11 +25,7 @@ export async function middleware(request: NextRequest) {
     },
   )
 
-  // Keep auth cookies fresh/valid
+  // This ensures the auth cookie stays fresh/valid
   await supabase.auth.getUser()
   return response
-}
-
-export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
 }

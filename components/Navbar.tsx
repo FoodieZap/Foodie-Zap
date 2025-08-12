@@ -1,87 +1,56 @@
-'use client'
-
+// components/Navbar.tsx  (SERVER component – no 'use client')
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
-import { useRouter, usePathname } from 'next/navigation'
-import { supabase } from '@/lib/supabaseClient'
+import { createServerSupabase } from '@/utils/supabase/server'
+import { logout } from '@/app/auth/logout/actions'
 
-export default function Navbar() {
-  const router = useRouter()
-  const pathname = usePathname()
-  const [email, setEmail] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    let mounted = true
-
-    async function load() {
-      const { data } = await supabase.auth.getUser()
-      if (!mounted) return
-      setEmail(data.user?.email ?? null)
-      setLoading(false)
-    }
-    load()
-
-    // Listen for login/logout changes
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      setEmail(session?.user?.email ?? null)
-      if (!session && pathname?.startsWith('/dashboard')) {
-        router.replace('/auth/login')
-      }
-    })
-
-    return () => {
-      mounted = false
-      sub.subscription.unsubscribe()
-    }
-  }, [router, pathname])
-
-  async function signOut() {
-    await supabase.auth.signOut()
-    router.replace('/auth/login')
-  }
+export default async function Navbar() {
+  const supabase = await createServerSupabase()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
   return (
-    <header className="border-b bg-white">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
-        <Link href="/" className="text-lg font-semibold">
-          Foodie-Zap
-        </Link>
+    <nav className="sticky top-0 z-40 flex items-center justify-between border-b bg-white/80 backdrop-blur px-4 py-3">
+      <Link href="/" className="text-lg font-semibold">
+        Foodie-Zap
+      </Link>
 
-        <div className="flex items-center gap-3">
-          {!loading && email ? (
-            <>
-              <Link
-                href="/dashboard"
-                className="rounded-md border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-100"
-              >
-                Dashboard
-              </Link>
+      <div className="flex items-center gap-2">
+        {user ? (
+          <>
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-50"
+            >
+              Dashboard
+            </Link>
+
+            <form action={logout}>
               <button
-                onClick={signOut}
-                className="rounded-md bg-gray-900 px-3 py-1.5 text-sm text-white hover:bg-gray-800"
+                type="submit"
+                className="inline-flex items-center rounded-xl bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
               >
                 Sign out
               </button>
-            </>
-          ) : (
-            <>
-              <Link
-                href="/auth/login"
-                className="rounded-md px-3 py-1.5 text-sm text-gray-800 hover:bg-gray-100"
-              >
-                Log in
-              </Link>
-              <Link
-                href="/auth/signup"
-                className="rounded-md bg-gray-900 px-3 py-1.5 text-sm text-white hover:bg-gray-800"
-              >
-                Sign up
-              </Link>
-            </>
-          )}
-        </div>
+            </form>
+          </>
+        ) : (
+          <>
+            <Link
+              href="/auth/login"
+              className="inline-flex items-center rounded-xl bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+            >
+              Log in
+            </Link>
+            <Link
+              href="/auth/signup"
+              className="inline-flex items-center rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-50"
+            >
+              Sign up
+            </Link>
+          </>
+        )}
       </div>
-    </header>
+    </nav>
   )
 }
