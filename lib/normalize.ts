@@ -1,46 +1,64 @@
 export type Competitor = {
-  id?: string;
-  source: 'google' | 'yelp';
-  place_id?: string;
-  name: string;
-  address?: string;
-  phone?: string;
-  website?: string;
-  rating?: number;
-  review_count?: number;
-  price_level?: string;
-  cuisine?: string;
-  data?: any;
-};
+  source: 'google' | 'yelp'
+  place_id?: string
+  name?: string
+  address?: string
+  phone?: string
+  website?: string
+  rating?: number
+  review_count?: number
+  price_level?: string
+  cuisine?: string
+  data?: any
+}
 
-export function normalizeGooglePlace(p: any): Competitor {
+export function fromGoogle(text: any, details: any): Competitor {
   return {
     source: 'google',
-    place_id: p.place_id,
-    name: p.name,
-    address: p.formatted_address,
-    phone: p.formatted_phone_number,
-    website: p.website,
-    rating: p.rating,
-    review_count: p.user_ratings_total,
-    price_level: p.price_level != null ? '$'.repeat(p.price_level) : undefined,
-    cuisine: p.types?.[0],
-    data: p
-  };
+    place_id: text.place_id,
+    name: text.name,
+    address: text.formatted_address,
+    phone: details?.formatted_phone_number,
+    website: details?.website,
+    rating: text.rating,
+    review_count: text.user_ratings_total,
+    price_level: text.price_level != null ? '$'.repeat(Number(text.price_level)) : undefined,
+    cuisine: Array.isArray(details?.types) ? details.types[0] : undefined,
+    data: { text, details },
+  }
 }
 
-export function normalizeYelp(b: any): Competitor {
+export function fromYelp(biz: any): Competitor {
   return {
     source: 'yelp',
-    place_id: b.id,
-    name: b.name,
-    address: b.location?.display_address?.join(', '),
-    phone: b.display_phone,
-    website: b.url,
-    rating: b.rating,
-    review_count: b.review_count,
-    price_level: b.price,
-    cuisine: b.categories?.[0]?.title,
-    data: b
-  };
+    place_id: biz.id,
+    name: biz.name,
+    address: [biz.location?.address1, biz.location?.city].filter(Boolean).join(', '),
+    phone: biz.display_phone,
+    website: biz.url,
+    rating: biz.rating,
+    review_count: biz.review_count,
+    price_level: biz.price,
+    cuisine: biz.categories?.[0]?.title,
+    data: biz,
+  }
 }
+
+/** naive dedupe: keep unique by website or name+address */
+export function dedupeCompetitors(list: Competitor[]): Competitor[] {
+  const seen = new Set<string>()
+  const out: Competitor[] = []
+  for (const c of list) {
+    const key = (c.website?.toLowerCase() ||
+      `${c.name?.toLowerCase()}|${c.address?.toLowerCase()}`)!
+    if (key && !seen.has(key)) {
+      seen.add(key)
+      out.push(c)
+    }
+  }
+  return out
+}
+
+// export function normalizeCompetitors(raw: Competitor[]): Competitor[] {
+//   return raw
+// }
