@@ -10,24 +10,36 @@ type YelpBusiness = {
   price?: string
   categories?: { title: string }[]
   url?: string
+  coordinates?: { latitude?: number; longitude?: number }
 }
 
-export async function yelpSearch(term: string, location: string, apiKey: string) {
-  const params = new URLSearchParams({ term, location, limit: '12' })
-  const res = await fetch(`${YELP_BASE}/businesses/search?${params}`, {
-    headers: { Authorization: `Bearer ${apiKey}` },
-    cache: 'no-store',
-  })
-  if (!res.ok) throw new Error('Yelp Search failed')
-  const json = await res.json()
-  return (json.businesses ?? []) as YelpBusiness[]
-}
+type Coords = { lat: number; lng: number }
 
-export async function yelpDetails(id: string, apiKey: string) {
-  const res = await fetch(`${YELP_BASE}/businesses/${id}`, {
-    headers: { Authorization: `Bearer ${apiKey}` },
-    cache: 'no-store',
-  })
-  if (!res.ok) throw new Error('Yelp Details failed')
-  return (await res.json()) as YelpBusiness
+export async function yelpSearch(
+  term: string,
+  loc: string | Coords,
+  apiKey: string,
+  opts?: { radius?: number; locale?: string },
+) {
+  const params = new URLSearchParams({ term, limit: '12' })
+  if (typeof loc === 'string') {
+    params.set('location', loc)
+  } else {
+    params.set('latitude', String(loc.lat))
+    params.set('longitude', String(loc.lng))
+    params.set('radius', String(opts?.radius ?? 10000)) // 10km default
+  }
+  if (opts?.locale) params.set('locale', opts.locale)
+
+  try {
+    const res = await fetch(`${YELP_BASE}/businesses/search?${params}`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      cache: 'no-store',
+    })
+    if (!res.ok) return [] as YelpBusiness[]
+    const json = await res.json()
+    return (json.businesses ?? []) as YelpBusiness[]
+  } catch {
+    return [] as YelpBusiness[]
+  }
 }
