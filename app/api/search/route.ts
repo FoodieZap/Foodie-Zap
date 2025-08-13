@@ -6,6 +6,7 @@ import { NewSearchSchema } from '@/lib/validators'
 import { gpTextSearch, gpPlaceDetails, gpCityCenter, gpNearbySearch } from '@/lib/external/google'
 import { yelpSearch } from '@/lib/external/yelp'
 import { fromGoogle, fromYelp, dedupeCompetitors, filterByRadius } from '@/lib/normalize'
+import { haversine } from '@/lib/geo'
 
 function serverClient() {
   const cookieStore = cookies()
@@ -45,7 +46,42 @@ export async function GET() {
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json({ searches: data })
 }
+// weights you can tune later
+function scoreItem(x: any, center: { lat: number; lng: number }) {
+  const dist = x.lat && x.lng ? haversine(center, { lat: x.lat, lng: x.lng }) : 999999
+  const rating = x.rating ?? 0
+  // Higher rating, closer distance = better score
+  const ratingComponent = rating / 5 // 0..1
+  const distanceComponent = Math.max(0, 1 - dist / 3000) // 3km sweet spot
+  return ratingComponent * 0.7 + distanceComponent * 0.3
+}
 
+function applyFilters<
+  T extends { lat?: number | null; lng?: number | null; rating?: number | null },
+>(
+  list: T[],
+  center: { lat: number; lng: number },
+  opts: { minRating?: number; maxDistanceMeters?: number } = {},
+) {
+  const { minRating = 0, maxDistanceMeters } = opts
+  return list.filter((x) => {
+    const r = x.rating ?? 0
+    const okRating = r >= minRating
+
+    if (!maxDistanceMeters) return okRating
+
+    const hasCoords =
+      typeof x.lat === 'number' &&
+      typeof x.lng === 'number' &&
+      !Number.isNaN(x.lat) &&
+      !Number.isNaN(x.lng)
+
+    if (!hasCoords) return false
+
+    const d = haversine(center, { lat: x.lat as number, lng: x.lng as number })
+    return okRating && d <= maxDistanceMeters
+  })
+}
 /** POST /api/search → create search, fetch competitors, insert rows */
 export async function POST(req: Request) {
   const supabase = serverClient()
@@ -173,12 +209,41 @@ export async function POST(req: Request) {
     const merged = dedupeCompetitors([...gpComps, ...yelpComps])
     const scoped = center ? filterByRadius(merged, center, radiusKm) : merged
 
-    // if (scoped.length) {
-    //   await supabase.from('competitors').insert(scoped.map((c) => ({ ...c, search_id: search.id })))
-    // }
-    // NEW — paste this block
-    if (scoped.length) {
-      const payload = scoped.map((c) => ({
+    // ====== NEW: filters + scoring on competitors ======
+    const { minRating, maxDistanceMeters } = parsed.data as {
+      minRating?: number
+      maxDistanceMeters?: number
+    }
+
+    // Apply rating + (if we have a center) distance filter
+    // If we don't have a center, distance filtering won't run (only rating will).
+    const filteredCompetitors = center
+      ? applyFilters(scoped, center, { minRating, maxDistanceMeters })
+      : applyFilters(scoped, { lat: 0, lng: 0 } as any, { minRating })
+
+    // Score (when center exists) and sort descending
+    const rankedCompetitors = (
+      center
+        ? filteredCompetitors.map((c: any) => ({ ...c, _score: scoreItem(c, center) }))
+        : filteredCompetitors.map((c: any) => ({ ...c, _score: null }))
+    ).sort((a: any, b: any) => {
+      if (a._score == null && b._score == null) return 0
+      if (a._score == null) return 1
+      if (b._score == null) return -1
+      return b._score - a._score
+    })
+    // ================================================
+    // After you have "center" and before you insert competitors (or before final update):
+    if (center) {
+      await supabase
+        .from('searches')
+        .update({ latitude: center.lat, longitude: center.lng })
+        .eq('id', search.id)
+    }
+
+    // Insert into DB only if we have something after filtering
+    if (rankedCompetitors.length) {
+      const payload = rankedCompetitors.map((c: any) => ({
         search_id: search.id,
         source: c.source,
         place_id: c.place_id ?? null,
@@ -190,9 +255,11 @@ export async function POST(req: Request) {
         review_count: c.review_count ?? null,
         price_level: c.price_level ?? null,
         cuisine: c.cuisine ?? null,
-        lat: c.lat ?? null, // requires DB columns lat/lng (see Step 1)
+        lat: c.lat ?? null,
         lng: c.lng ?? null,
         data: c.data ?? null,
+        // Optional: persist score for debugging / analytics (if you added a column)
+        // score: c._score ?? null,
       }))
 
       const { error: insertErr } = await supabase.from('competitors').insert(payload)
