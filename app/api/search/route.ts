@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 // app/api/search/route.ts
 import { NextResponse } from 'next/server'
 import { createSupabaseRoute } from '@/utils/supabase/route'
@@ -11,7 +13,6 @@ import { haversine } from '@/lib/geo'
 /** GET /api/search → list recent searches for the user */
 export async function GET() {
   const supabase = createSupabaseRoute()
-
   const {
     data: { user },
   } = await supabase.auth.getUser()
@@ -26,11 +27,11 @@ export async function GET() {
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json({ searches: data })
 }
+
 // weights you can tune later
 function scoreItem(x: any, center: { lat: number; lng: number }) {
   const dist = x.lat && x.lng ? haversine(center, { lat: x.lat, lng: x.lng }) : 999999
   const rating = x.rating ?? 0
-  // Higher rating, closer distance = better score
   const ratingComponent = rating / 5 // 0..1
   const distanceComponent = Math.max(0, 1 - dist / 3000) // 3km sweet spot
   return ratingComponent * 0.7 + distanceComponent * 0.3
@@ -47,7 +48,6 @@ function applyFilters<
   return list.filter((x) => {
     const r = x.rating ?? 0
     const okRating = r >= minRating
-
     if (!maxDistanceMeters) return okRating
 
     const hasCoords =
@@ -57,7 +57,6 @@ function applyFilters<
       !Number.isNaN(x.lng)
 
     if (!hasCoords) return false
-
     const d = haversine(center, { lat: x.lat as number, lng: x.lng as number })
     return okRating && d <= maxDistanceMeters
   })
@@ -111,38 +110,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: insErr.message }, { status: 400 })
   }
 
-  // Mock mode (fast demo)
-  if (process.env.MOCK_MODE === 'true') {
-    await supabase.from('competitors').insert([
-      {
-        search_id: search.id,
-        source: 'google',
-        place_id: 'g_demo_1',
-        name: 'Cafe Demo',
-        address: '123 Main St',
-        rating: 4.5,
-        review_count: 812,
-        price_level: '$$',
-        cuisine: 'Cafe',
-        data: { demo: true },
-      },
-      {
-        search_id: search.id,
-        source: 'yelp',
-        place_id: 'y_demo_2',
-        name: 'Brew Bros',
-        address: '456 Oak Ave',
-        rating: 4.2,
-        review_count: 410,
-        price_level: '$$',
-        cuisine: 'Cafe',
-        data: { demo: true },
-      },
-    ])
-    await supabase.from('searches').update({ status: 'ok' }).eq('id', search.id)
-    return NextResponse.json({ id: search.id, status: 'ok' })
-  }
-
   // Real fetch (Google + Yelp, radius scoped)
   try {
     const gpKey = process.env.GOOGLE_PLACES_API_KEY!
@@ -150,8 +117,14 @@ export async function POST(req: Request) {
     const radiusKm = Number(process.env.SEARCH_RADIUS_KM ?? '15')
     const radiusM = Math.min(Math.max(Math.floor(radiusKm * 1000), 1000), 40000)
 
-    // 1) City center
+    // 1) City center (make sure gpCityCenter is US-biased; see Step 2)
     const center = await gpCityCenter(city, gpKey).catch(() => null)
+    if (center) {
+      await supabase
+        .from('searches')
+        .update({ latitude: center.lat, longitude: center.lng })
+        .eq('id', search.id)
+    }
 
     // 2) Google results (Nearby preferred, fallback to Text)
     let gpResults: any[] = []
@@ -191,19 +164,16 @@ export async function POST(req: Request) {
     const merged = dedupeCompetitors([...gpComps, ...yelpComps])
     const scoped = center ? filterByRadius(merged, center, radiusKm) : merged
 
-    // ====== NEW: filters + scoring on competitors ======
+    // ====== filters + scoring on competitors ======
     const { minRating, maxDistanceMeters } = parsed.data as {
       minRating?: number
       maxDistanceMeters?: number
     }
 
-    // Apply rating + (if we have a center) distance filter
-    // If we don't have a center, distance filtering won't run (only rating will).
     const filteredCompetitors = center
       ? applyFilters(scoped, center, { minRating, maxDistanceMeters })
       : applyFilters(scoped, { lat: 0, lng: 0 } as any, { minRating })
 
-    // Score (when center exists) and sort descending
     const rankedCompetitors = (
       center
         ? filteredCompetitors.map((c: any) => ({ ...c, _score: scoreItem(c, center) }))
@@ -214,14 +184,7 @@ export async function POST(req: Request) {
       if (b._score == null) return -1
       return b._score - a._score
     })
-    // ================================================
-    // After you have "center" and before you insert competitors (or before final update):
-    if (center) {
-      await supabase
-        .from('searches')
-        .update({ latitude: center.lat, longitude: center.lng })
-        .eq('id', search.id)
-    }
+    // ==============================================
 
     // Insert into DB only if we have something after filtering
     if (rankedCompetitors.length) {
@@ -240,11 +203,12 @@ export async function POST(req: Request) {
         lat: c.lat ?? null,
         lng: c.lng ?? null,
         data: c.data ?? null,
-        // Optional: persist score for debugging / analytics (if you added a column)
-        // score: c._score ?? null,
       }))
 
-      const { error: insertErr } = await supabase.from('competitors').insert(payload)
+      const { error: insertErr } = await supabase
+        .from('competitors')
+        .upsert(payload, { onConflict: 'search_id,source,place_id' })
+
       if (insertErr) {
         await supabase
           .from('searches')
@@ -263,7 +227,7 @@ export async function POST(req: Request) {
       user_id: user.id,
       route: '/api/search',
       status: 200,
-      meta: { query, city, inserted: scoped.length, radius_km: radiusKm },
+      meta: { query, city, inserted: rankedCompetitors.length, radius_km: radiusKm },
     })
 
     return NextResponse.json({ id: search.id, status: 'ok' })

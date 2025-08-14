@@ -31,7 +31,15 @@ export default async function Navbar() {
             >
               Dashboard
             </Link>
-
+            {/* <Link
+              href="/watchlist"
+              className="inline-flex items-center rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-50"
+            >
+              Watchlist
+            </Link> */}
+            <a href="/watchlist" className="inline-flex items-center rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-50">
+              Watchlist
+            </a>
             <form action={logout}>
               <button
                 type="submit"

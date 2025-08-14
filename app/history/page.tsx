@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 // app/results/page.tsx
 import { createSupabaseRSC } from '@/utils/supabase/server'
 import Link from 'next/link'
@@ -82,5 +84,3 @@ export default async function RlsDebugPage() {
     </main>
   )
 }
-
-

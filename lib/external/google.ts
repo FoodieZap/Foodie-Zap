@@ -44,16 +44,27 @@ export async function gpPlaceDetails(placeId: string, apiKey: string) {
 }
 
 /** Get city center coordinates via Text Search */
-export async function gpCityCenter(city: string, apiKey: string) {
-  const q = encodeURIComponent(city)
-  const url = `${GP_BASE}/textsearch/json?query=${q}&type=locality&key=${apiKey}`
-  const res = await fetch(url, { cache: 'no-store' })
+// lib/external/google.ts
+
+export async function gpCityCenter(
+  city: string,
+  key: string,
+): Promise<{ lat: number; lng: number; formatted: string } | null> {
+  const url = new URL('https://maps.googleapis.com/maps/api/geocode/json')
+  url.searchParams.set('address', city)
+  url.searchParams.set('components', 'country:US') // hard-bias to US; adjust later if needed
+  url.searchParams.set('key', key)
+
+  const res = await fetch(url.toString())
   if (!res.ok) return null
   const json = await res.json()
-  const first = json.results?.[0]
-  const loc = first?.geometry?.location
-  if (loc?.lat != null && loc?.lng != null) return { lat: loc.lat, lng: loc.lng }
-  return null
+
+  if (json.status !== 'OK' || !json.results?.length) return null
+  const best = json.results[0]
+  const loc = best.geometry?.location
+  if (!loc) return null
+
+  return { lat: loc.lat, lng: loc.lng, formatted: best.formatted_address }
 }
 
 /** Strictly bound Google results to a radius around a center */

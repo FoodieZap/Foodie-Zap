@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 // app/page.tsx
 import { createSupabaseRSC } from '@/utils/supabase/server'
 import { signOut } from '@/app/(auth)/actions'

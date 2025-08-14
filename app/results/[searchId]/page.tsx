@@ -1,27 +1,38 @@
-// app/history/[searchId]/page.tsx
+export const dynamic = 'force-dynamic'
+
+// app/results/[searchId]/page.tsx
 import { createSupabaseRSC } from '@/utils/supabase/server'
+import ResultsTable from '@/components/ResultsTable'
 import Link from 'next/link'
+import ResultsView from '@/components/ResultsView'
 
-type Params = { searchId: string }
+interface PageProps {
+  params: { searchId: string }
+  // Next.js App Router passes query params here; values can be string or string[]
+  searchParams?: { [key: string]: string | string[] | undefined }
+}
 
-export default async function RlsSearchDetail({ params }: { params: Params }) {
+const ITEMS_PER_PAGE = 10 // adjust to 20/25 if you prefer
+
+export default async function ResultsPage({ params, searchParams }: PageProps) {
   const supabase = createSupabaseRSC()
+  const searchId = params.searchId // <-- MUST come from params
 
-  // Optional: ensure we are logged in (nice message)
-  let user: { id: string; email?: string | null } | null = null
-  try {
-    const { data } = await supabase.auth.getUser()
-    user = data && data.user ? (data.user as any) : null
-  } catch {
-    user = null
-  }
-  if (!user) {
+  // 1) Ensure we can access the search (RLS enforces ownership)
+  const { data: search, error: searchErr } = await supabase
+    .from('searches')
+    .select('id, query, city, latitude, longitude, status, created_at')
+    .eq('id', searchId)
+    .single()
+
+  if (searchErr || !search) {
     return (
       <main className="max-w-3xl mx-auto p-6">
-        <p className="mb-4">
-          Not logged in.{' '}
-          <a href="/auth/login" className="underline">
-            Log in
+        <h1 className="text-xl font-semibold">Search not found or not accessible.</h1>
+        <p className="mt-2 text-gray-600">
+          Double‑check the link or open from your{' '}
+          <a className="underline text-blue-600" href="/history">
+            History
           </a>
           .
         </p>
@@ -29,80 +40,119 @@ export default async function RlsSearchDetail({ params }: { params: Params }) {
     )
   }
 
-  // 1) fetch the search (RLS should allow if you own it)
-  const { data: search, error: searchErr } = await supabase
-    .from('searches')
-    .select('id, query, city, created_at')
-    .eq('id', params.searchId)
-    .single()
-
-  if (searchErr || !search) {
-    return (
-      <main className="max-w-3xl mx-auto p-6">
-        <p className="mb-2 font-medium">Search not found or not accessible.</p>
-        <p className="text-sm text-gray-600 mb-4">
-          If this search belongs to another user, RLS will block access.
-        </p>
-        <Link className="text-blue-600 underline" href="/history">
-          Back
-        </Link>
-      </main>
-    )
-  }
-
-  // 2) fetch competitors for this search (RLS chained via parent search)
-  const { data: competitors, error: compErr } = await supabase
+  // 2) Parse ?page=... safely (string or string[] or undefined)
+  const pageParam = searchParams?.page
+  const page = pageParam ? parseInt(pageParam as string, 10) : 1
+  const pageSize = 20
+  const from = (page - 1) * pageSize
+  const to = from + pageSize - 1
+  // 3) Fetch this page of competitors + total count
+  const {
+    data: competitors,
+    error: compErr,
+    count,
+  } = await supabase
     .from('competitors')
-    .select('id, name, source, rating, review_count, price_level, address, lat, lng')
+    .select('id, name, source, rating, review_count, price_level, address, lat, lng, data', {
+      count: 'exact',
+    })
+    .eq('search_id', searchId) // <-- CRITICAL: use the param
+    .order('review_count', { ascending: false })
+    .range(from, to)
+  const { data: starredRows } = await supabase
+    .from('watchlist')
+    .select('competitor_id')
     .eq('search_id', search.id)
     .order('rating', { ascending: false })
-    .limit(200)
+    .range(from, to)
+  // Which competitors are starred by this user?
+  // const { data: starredRows } = await supabase.from('watchlist').select('competitor_id')
+
+  const starredIds = (starredRows ?? []).map((r: any) => r.competitor_id as string)
+
+  // 4) Surface score if you stored it inside data._score (optional)
+  const items = (competitors ?? []).map((c) => {
+    let score: number | null = null
+    try {
+      const s = (c as any)?.data?._score
+      if (typeof s === 'number') score = s
+    } catch {}
+    return { ...c, _score: score }
+  })
+
+  const total = count ?? items.length
+  const totalPages = total > 0 ? Math.ceil(total / ITEMS_PER_PAGE) : 1
+  const hasPrev = page > 1
+  const hasNext = page < totalPages
 
   return (
-    <main className="max-w-4xl mx-auto p-6">
-      <div className="mb-4">
+    <main className="max-w-5xl mx-auto p-6 space-y-6">
+      <div>
         <Link href="/history" className="text-blue-600 underline">
-          ← Back
+          ← Back to history
         </Link>
       </div>
 
-      <h1 className="text-xl font-semibold mb-1">
-        Competitors for: {search.query} — {search.city}
-      </h1>
-      <p className="text-sm text-gray-600 mb-6">
-        Search ID: <code className="bg-gray-100 px-1 py-0.5 rounded">{search.id}</code>
-      </p>
-
-      {compErr && (
-        <div className="mb-4 rounded bg-rose-50 text-rose-700 p-3">
-          Error loading competitors: {compErr.message}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold">
+            Results for: {search.query} — {search.city}
+          </h1>
+          <div className="text-sm text-gray-600">
+            {new Date(search.created_at as any).toLocaleString()}
+          </div>
         </div>
-      )}
 
-      <div className="rounded border bg-white">
-        <div className="px-4 py-2 border-b font-medium">Top competitors</div>
-        <div className="divide-y">
-          {(!competitors || competitors.length === 0) && (
-            <div className="p-4 text-gray-500">No competitors saved for this search.</div>
-          )}
-          {competitors?.map((c) => (
-            <div key={c.id} className="p-4">
-              <div className="font-medium">
-                {c.name} <span className="text-xs text-gray-500">({c.source})</span>
-              </div>
-              <div className="text-sm text-gray-600">
-                Rating: {c.rating ?? '—'} • Reviews: {c.review_count ?? '—'} • Price:{' '}
-                {c.price_level ?? '—'}
-              </div>
-              <div className="text-sm text-gray-600">{c.address ?? '—'}</div>
-              <div className="text-xs text-gray-500">
-                Lat/Lng: {c.lat ?? '—'}, {c.lng ?? '—'}
-              </div>
-            </div>
-          ))}
-        </div>
+        {/* Export CSV */}
+        <a
+          href={`/api/export-csv?search_id=${search.id}`}
+          className="rounded bg-gray-900 text-white px-3 py-1.5 text-sm hover:bg-gray-800"
+        >
+          Export CSV
+        </a>
+      </div>
+
+      {/* The paged list */}
+
+      <ResultsView
+        items={items as any}
+        centerLat={search.latitude}
+        centerLng={search.longitude}
+        starredIds={starredIds}
+      />
+
+      {/* Pagination Controls */}
+      <div className="flex items-center justify-center gap-3 mt-2">
+        {hasPrev ? (
+          <a
+            href={`?page=${page - 1}`}
+            className="px-3 py-1 rounded border text-sm hover:bg-gray-100"
+          >
+            ← Prev
+          </a>
+        ) : (
+          <span className="px-3 py-1 rounded border text-sm opacity-50 cursor-not-allowed">
+            ← Prev
+          </span>
+        )}
+
+        <span className="text-sm">
+          Page {page} of {totalPages}
+        </span>
+
+        {hasNext ? (
+          <a
+            href={`?page=${page + 1}`}
+            className="px-3 py-1 rounded border text-sm hover:bg-gray-100"
+          >
+            Next →
+          </a>
+        ) : (
+          <span className="px-3 py-1 rounded border text-sm opacity-50 cursor-not-allowed">
+            Next →
+          </span>
+        )}
       </div>
     </main>
   )
 }
-
