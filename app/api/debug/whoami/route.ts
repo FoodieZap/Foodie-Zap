@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
-import { createServerSupabase } from '@/utils/supabase/server'
+import { createSupabaseRoute } from '@/utils/supabase/route'
 
 export async function GET() {
-  const supabase = await createServerSupabase()
+  const supabase = createSupabaseRoute()
+
   const {
     data: { user },
     error,

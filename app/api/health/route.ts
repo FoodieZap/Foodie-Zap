@@ -1,6 +1,6 @@
 // app/api/health/route.ts
 import { NextResponse } from 'next/server'
-import { hasEnv } from '@/lib/supabaseClient'
+import { createSupabaseRoute } from '@/utils/supabase/route'
 
 export const revalidate = 0 // always fresh
 

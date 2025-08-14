@@ -1,10 +1,10 @@
 export const dynamic = 'force-dynamic' // avoid any cache
 
 import { redirect } from 'next/navigation'
-import { createServerSupabase } from '@/utils/supabase/server'
+import { createSupabaseRSC } from '@/utils/supabase/server'
 
 export default async function DashboardPage() {
-  const supabase = await createServerSupabase()
+  const supabase = createSupabaseRSC()
   const {
     data: { user },
     error,

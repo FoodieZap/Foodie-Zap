@@ -1,30 +1,9 @@
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
-import { type CookieOptions, createServerClient } from '@supabase/ssr'
-
-function serverClient() {
-  const cookieStore = cookies()
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(n: string) {
-          return cookieStore.get(n)?.value
-        },
-        set(n: string, v: string, o: CookieOptions) {
-          cookieStore.set({ name: n, value: v, ...o })
-        },
-        remove(n: string, o: CookieOptions) {
-          cookieStore.set({ name: n, value: '', ...o })
-        },
-      },
-    },
-  )
-}
+import { createSupabaseRoute } from '@/utils/supabase/route'
 
 export async function GET(req: Request) {
-  const supabase = serverClient()
+  const supabase = createSupabaseRoute()
+
   const { searchParams } = new URL(req.url)
   const searchId = searchParams.get('search_id')
   if (!searchId) return NextResponse.json({ error: 'missing search_id' }, { status: 400 })

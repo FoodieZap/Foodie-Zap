@@ -1,37 +1,17 @@
 // app/api/search/route.ts
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
-import { type CookieOptions, createServerClient } from '@supabase/ssr'
+import { createSupabaseRoute } from '@/utils/supabase/route'
+
 import { NewSearchSchema } from '@/lib/validators'
 import { gpTextSearch, gpPlaceDetails, gpCityCenter, gpNearbySearch } from '@/lib/external/google'
 import { yelpSearch } from '@/lib/external/yelp'
 import { fromGoogle, fromYelp, dedupeCompetitors, filterByRadius } from '@/lib/normalize'
 import { haversine } from '@/lib/geo'
 
-function serverClient() {
-  const cookieStore = cookies()
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(n: string) {
-          return cookieStore.get(n)?.value
-        },
-        set(n: string, v: string, o: CookieOptions) {
-          cookieStore.set({ name: n, value: v, ...o })
-        },
-        remove(n: string, o: CookieOptions) {
-          cookieStore.set({ name: n, value: '', ...o })
-        },
-      },
-    },
-  )
-}
-
 /** GET /api/search → list recent searches for the user */
 export async function GET() {
-  const supabase = serverClient()
+  const supabase = createSupabaseRoute()
+
   const {
     data: { user },
   } = await supabase.auth.getUser()
@@ -82,9 +62,11 @@ function applyFilters<
     return okRating && d <= maxDistanceMeters
   })
 }
+
 /** POST /api/search → create search, fetch competitors, insert rows */
 export async function POST(req: Request) {
-  const supabase = serverClient()
+  const supabase = createSupabaseRoute()
+
   const {
     data: { user },
   } = await supabase.auth.getUser()

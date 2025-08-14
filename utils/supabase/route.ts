@@ -1,8 +1,8 @@
-// utils/supabase/server.ts
 import { cookies } from 'next/headers'
+import type { CookieOptions } from '@supabase/ssr'
 import { createServerClient } from '@supabase/ssr'
 
-export function createSupabaseRSC() {
+export function createSupabaseRoute() {
   const cookieStore = cookies()
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -12,11 +12,11 @@ export function createSupabaseRSC() {
         get(name: string) {
           return cookieStore.get(name)?.value
         },
-        set() {
-          /* no-op in Server Components */
+        set(name: string, value: string, options: CookieOptions) {
+          cookieStore.set({ name, value, ...options })
         },
-        remove() {
-          /* no-op in Server Components */
+        remove(name: string, options: CookieOptions) {
+          cookieStore.set({ name, value: '', ...options })
         },
       },
     },

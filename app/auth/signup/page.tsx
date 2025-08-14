@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
+import { createSupabaseRSC } from '@/utils/supabase/server'
 
 export default function SignupPage() {
   const router = useRouter()

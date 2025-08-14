@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { login } from './actions'
+import { createSupabaseRSC } from '@/utils/supabase/server'
 
 export default function LoginPage({ searchParams }: { searchParams?: { error?: string } }) {
   const err = searchParams?.error
