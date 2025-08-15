@@ -36,7 +36,6 @@ export default function WatchlistItem({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ competitor_id: competitor.id, note }),
     })
-    // Refresh server data, exit edit mode
     startTransition(() => {
       setEditing(false)
       router.refresh()
@@ -44,7 +43,7 @@ export default function WatchlistItem({
   }
 
   async function deleteNote() {
-    // Keep the star, just clear the note (note: null)
+    // clear the note but keep it starred
     await fetch('/api/watchlist', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -97,7 +96,7 @@ export default function WatchlistItem({
 
         {!editing ? (
           note ? (
-            // Read view: pretty note box + Edit/Delete Note
+            // read mode
             <div className="rounded border border-gray-200 bg-gray-50 p-3">
               <div className="whitespace-pre-wrap text-sm text-gray-800">{note}</div>
               <div className="mt-2 flex items-center gap-2">
@@ -116,7 +115,7 @@ export default function WatchlistItem({
               </div>
             </div>
           ) : (
-            // No note yet
+            // empty state
             <div className="rounded border border-dashed bg-white p-3 text-sm text-gray-500">
               No note yet.
               <button onClick={() => setEditing(true)} className="ml-2 underline text-blue-600">
@@ -125,7 +124,7 @@ export default function WatchlistItem({
             </div>
           )
         ) : (
-          // Edit mode
+          // edit mode
           <div>
             <textarea
               value={note}

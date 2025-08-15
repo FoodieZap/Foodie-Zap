@@ -5,6 +5,10 @@ import { createSupabaseRSC } from '@/utils/supabase/server'
 import ResultsTable from '@/components/ResultsTable'
 import Link from 'next/link'
 import ResultsView from '@/components/ResultsView'
+import { Space } from 'lucide-react'
+import MenuCard from '@/components/MenuCard'
+import ActionsCard from '@/components/ActionsCard'
+import GeneratePlaceholders from '@/components/GeneratePlaceholders'
 
 interface PageProps {
   params: { searchId: string }
@@ -67,6 +71,21 @@ export default async function ResultsPage({ params, searchParams }: PageProps) {
     .range(from, to)
   // Which competitors are starred by this user?
   // const { data: starredRows } = await supabase.from('watchlist').select('competitor_id')
+  // Load menus (for competitors in this search)
+  const { data: menus } = await supabase
+    .from('menus')
+    .select('competitor_id, avg_price, top_items')
+    .in(
+      'competitor_id',
+      (competitors ?? []).map((c: any) => c.id),
+    )
+
+  // Load insights for this search
+  const { data: insightRow } = await supabase
+    .from('insights')
+    .select('summary, actions')
+    .eq('search_id', search.id)
+    .maybeSingle()
 
   const starredIds = (starredRows ?? []).map((r: any) => r.competitor_id as string)
 
@@ -103,13 +122,34 @@ export default async function ResultsPage({ params, searchParams }: PageProps) {
           </div>
         </div>
 
-        {/* Export CSV */}
-        <a
-          href={`/api/export-csv?search_id=${search.id}`}
-          className="rounded bg-gray-900 text-white px-3 py-1.5 text-sm hover:bg-gray-800"
-        >
-          Export CSV
-        </a>
+        <div>
+          <a
+            href={`/api/export-csv?search_id=${search.id}`}
+            className="rounded bg-gray-900 text-white px-3 py-1.5 text-sm hover:bg-gray-800 mr-1"
+          >
+            Export CSV
+          </a>
+
+          <a
+            href={`/api/export/xlsx?searchId=${search.id}`}
+            className="rounded bg-gray-900 text-white px-3 py-1.5 text-sm hover:bg-gray-800 mr-1"
+          >
+            Export XLSX
+          </a>
+        </div>
+      </div>
+      <div className="flex gap-2">
+        {/* <form action={`/api/menus/placeholder?searchId=${search.id}`} method="post">
+          <button className="rounded border px-3 py-1.5 text-sm hover:bg-gray-100" type="submit">
+            Generate Menus (placeholder)
+          </button>
+        </form> */}
+        <GeneratePlaceholders searchId={search.id} />
+        {/* <form action={`/api/insights/placeholder?searchId=${search.id}`} method="post">
+          <button className="rounded border px-3 py-1.5 text-sm hover:bg-gray-100" type="submit">
+            Generate Insights (placeholder)
+          </button>
+        </form> */}
       </div>
 
       {/* The paged list */}
@@ -152,6 +192,13 @@ export default async function ResultsPage({ params, searchParams }: PageProps) {
             Next →
           </span>
         )}
+      </div>
+      <MenuCard menus={menus ?? []} />
+      <div className="mt-4">
+        <ActionsCard
+          summary={(insightRow?.summary as string) ?? null}
+          actions={(insightRow?.actions as string[]) ?? null}
+        />
       </div>
     </main>
   )

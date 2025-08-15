@@ -1,6 +1,6 @@
+// app/watchlist/page.tsx
 export const dynamic = 'force-dynamic'
 
-// app/watchlist/page.tsx
 import { createSupabaseRSC } from '@/utils/supabase/server'
 import WatchlistItem from '@/components/WatchlistItem'
 
@@ -32,7 +32,18 @@ export default async function WatchlistPage() {
 
   return (
     <main className="max-w-4xl mx-auto p-6 space-y-6">
-      <h1 className="text-xl font-semibold">Watchlist</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold">Watchlist</h1>
+        <div>
+          <a
+            href="/api/export/xlsx?watchlist=1"
+            className="rounded border px-3 py-1.5 text-sm hover:bg-gray-100"
+          >
+            Export XLSX
+          </a>
+        </div>
+      </div>
+
       {error && <div className="rounded bg-rose-50 text-rose-700 p-3">Error: {error.message}</div>}
 
       {!data || data.length === 0 ? (
@@ -50,7 +61,7 @@ export default async function WatchlistPage() {
               key={row.id}
               id={row.id}
               competitor={row.competitors as any}
-              note={row.note ?? ''}
+              note={(row.note ?? '') as string}
             />
           ))}
         </div>
