@@ -5,7 +5,7 @@ import { createSupabaseRSC } from '@/utils/supabase/server'
 
 export default async function Navbar() {
   // Create the read-only client (no cookie writes)
-  const supabase = createSupabaseRSC()
+  const supabase = await createSupabaseRSC()
 
   // Safely try to read the user; if refresh token is bad, just treat as logged out
   let user: { id: string; email?: string | null } | null = null
@@ -37,7 +37,10 @@ export default async function Navbar() {
             >
               Watchlist
             </Link> */}
-            <a href="/watchlist" className="inline-flex items-center rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-50">
+            <a
+              href="/watchlist"
+              className="inline-flex items-center rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-50"
+            >
               Watchlist
             </a>
             <form action={logout}>

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createSupabaseRoute } from '@/utils/supabase/route'
 
 export async function GET(req: Request) {
-  const supabase = createSupabaseRoute()
+  const supabase = await createSupabaseRoute()
 
   const { searchParams } = new URL(req.url)
   const searchId = searchParams.get('search_id')

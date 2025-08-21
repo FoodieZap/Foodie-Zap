@@ -1,9 +1,15 @@
+// utils/supabase/route.ts
 import { cookies } from 'next/headers'
-import type { CookieOptions } from '@supabase/ssr'
-import { createServerClient } from '@supabase/ssr'
+import { createServerClient, type CookieOptions } from '@supabase/ssr'
 
-export function createSupabaseRoute() {
-  const cookieStore = cookies()
+/**
+
+// * Next.js 15: cookies() is async and returns a *readonly* object.
+// * We only *read* cookies here; set/remove are no-ops for typical API reads.
+// */
+export async function createSupabaseRoute() {
+  const cookieStore = await cookies() // ✅ Next 15 requires await
+
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -12,11 +18,13 @@ export function createSupabaseRoute() {
         get(name: string) {
           return cookieStore.get(name)?.value
         },
-        set(name: string, value: string, options: CookieOptions) {
-          cookieStore.set({ name, value, ...options })
+        // In route handlers, cookieStore is readonly. For most endpoints
+        // we don't need to mutate cookies. Keep these as no-ops.
+        set(_name: string, _value: string, _options: CookieOptions) {
+          /* no-op */
         },
-        remove(name: string, options: CookieOptions) {
-          cookieStore.set({ name, value: '', ...options })
+        remove(_name: string, _options: CookieOptions) {
+          /* no-op */
         },
       },
     },

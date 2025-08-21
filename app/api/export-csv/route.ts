@@ -45,14 +45,17 @@ function csvEscape(v: unknown) {
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
-  const searchId = searchParams.get('search_id')
+  const searchId = searchParams.get('searchId') ?? searchParams.get('search_id')
+  if (!searchId) {
+    return NextResponse.json({ error: 'searchId is required' }, { status: 400 })
+  }
   const includeLatLng = searchParams.get('raw') === 'true' // optional: ?raw=true to include lat/lng
 
   if (!searchId) {
     return NextResponse.json({ error: 'Missing search_id' }, { status: 400 })
   }
 
-  const supabase = createSupabaseRoute()
+  const supabase = await createSupabaseRoute()
 
   // auth check (RLS still protects rows)
   const {

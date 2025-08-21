@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server'
 import { createSupabaseRoute } from '@/utils/supabase/route'
 
 export async function POST(req: Request) {
-  const supabase = createSupabaseRoute()
+  const supabase = await createSupabaseRoute()
   const {
     data: { user },
   } = await supabase.auth.getUser()

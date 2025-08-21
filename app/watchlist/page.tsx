@@ -5,7 +5,7 @@ import { createSupabaseRSC } from '@/utils/supabase/server'
 import WatchlistItem from '@/components/WatchlistItem'
 
 export default async function WatchlistPage() {
-  const supabase = createSupabaseRSC()
+  const supabase = await createSupabaseRSC()
   const {
     data: { user },
   } = await supabase.auth.getUser()

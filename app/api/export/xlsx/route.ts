@@ -6,14 +6,17 @@ import * as XLSX from 'xlsx'
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request) {
-  const supabase = createSupabaseRoute()
+  const supabase = await createSupabaseRoute()
   const {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { searchParams } = new URL(req.url)
-  const searchId = searchParams.get('searchId')
+  const searchId = searchParams.get('searchId') ?? searchParams.get('search_id')
+  if (!searchId) {
+    return NextResponse.json({ error: 'searchId is required' }, { status: 400 })
+  }
   const isWatchlist = searchParams.get('watchlist') === '1'
 
   try {

@@ -5,7 +5,7 @@ import Link from 'next/link'
 type Params = { searchId: string }
 
 export default async function RlsSearchDetail({ params }: { params: Params }) {
-  const supabase = createSupabaseRSC()
+  const supabase = await createSupabaseRSC()
 
   // Optional: ensure we are logged in (nice message)
   let user: { id: string; email?: string | null } | null = null

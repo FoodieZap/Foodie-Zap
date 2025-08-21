@@ -4,7 +4,7 @@ import { createSupabaseRoute } from '@/utils/supabase/route'
 import { type CookieOptions, createServerClient } from '@supabase/ssr'
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
-  const supabase = createSupabaseRoute()
+  const supabase = await createSupabaseRoute()
 
   const {
     data: { user },

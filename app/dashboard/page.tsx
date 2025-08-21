@@ -3,7 +3,7 @@ import SearchForm from '@/components/SearchForm'
 import Link from 'next/link'
 
 export default async function DashboardPage() {
-  const supabase = createSupabaseRSC()
+  const supabase = await createSupabaseRSC()
 
   // who is logged in?
   let user: { id: string; email?: string | null } | null = null

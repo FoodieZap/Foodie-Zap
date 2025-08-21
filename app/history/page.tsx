@@ -1,85 +1,108 @@
+// app/history/page.tsx
 export const dynamic = 'force-dynamic'
 
-// app/results/page.tsx
-import { createSupabaseRSC } from '@/utils/supabase/server'
 import Link from 'next/link'
+import { createSupabaseRSC } from '@/utils/supabase/server'
 
-export default async function RlsDebugPage() {
-  const supabase = createSupabaseRSC()
+export default async function HistoryPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
+  const supabase = await createSupabaseRSC()
+  const sp = await searchParams
+  const page = sp?.page ? parseInt(sp.page as string, 10) : 1
+  const pageSize = 10
+  const from = (page - 1) * pageSize
+  const to = from + pageSize - 1
 
-  // 1) get current user (safe read-only)
-  let user: { id: string; email?: string | null } | null = null
-  try {
-    const { data } = await supabase.auth.getUser()
-    user = data && data.user ? (data.user as any) : null
-  } catch {
-    user = null
-  }
+  const { data: userData } = await supabase.auth.getUser()
+  const user = userData?.user ?? null
 
-  if (!user) {
+  const { data: rows, error } = await supabase
+    .from('searches')
+    .select('id, created_at, city, query, status, total_competitors')
+    .eq('user_id', user?.id ?? '__anon__')
+    .order('created_at', { ascending: false })
+    .range(from, to)
+
+  if (error) {
     return (
-      <main className="max-w-2xl mx-auto p-6">
-        <h1 className="text-xl font-semibold mb-2">Search History</h1>
-        <p className="text-gray-700">
-          You are not logged in. Please{' '}
-          <a href="/auth/login" className="underline">
-            log in
-          </a>{' '}
-          and reload.
-        </p>
+      <main className="max-w-4xl mx-auto p-6">
+        <h1 className="text-2xl font-semibold mb-4">History</h1>
+        <p className="text-red-600">Error loading history: {error.message}</p>
       </main>
     )
   }
 
-  // 2) list the user's searches (RLS should enforce this)
-  const { data: searches, error } = await supabase
-    .from('searches')
-    .select('id, query, city, status, created_at')
-    .order('created_at', { ascending: false })
-    .limit(50)
-
   return (
-    <main className="max-w-3xl mx-auto p-6">
-      <h1 className="text-xl font-semibold mb-2">Search History</h1>
-      <p className="text-sm text-gray-600 mb-6">
-        Signed in as <span className="font-medium">{user.email ?? user.id}</span>
-      </p>
+    <main className="max-w-5xl mx-auto p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-semibold">History</h1>
+        <Link href="/new" className="text-sm px-3 py-1 rounded border hover:bg-gray-50">
+          + New Analysis
+        </Link>
+      </div>
 
-      {error && (
-        <div className="mb-4 rounded bg-rose-50 text-rose-700 p-3">
-          Error loading searches: {error.message}
+      {!rows?.length ? (
+        <div className="border rounded p-6 text-gray-600">
+          No saved runs yet. Start a{' '}
+          <Link className="underline" href="/new">
+            new analysis
+          </Link>
+          .
+        </div>
+      ) : (
+        <div className="overflow-x-auto border rounded">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 text-left">
+              <tr>
+                <th className="px-3 py-2">Date</th>
+                <th className="px-3 py-2">City</th>
+                <th className="px-3 py-2">Query</th>
+                <th className="px-3 py-2">Status</th>
+                <th className="px-3 py-2 text-right">Competitors</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.id} className="border-t hover:bg-gray-50">
+                  <td className="px-3 py-2">
+                    <Link className="underline" href={`/results/${r.id}`}>
+                      {new Date(r.created_at).toLocaleString()}
+                    </Link>
+                  </td>
+                  <td className="px-3 py-2">{r.city ?? '-'}</td>
+                  <td className="px-3 py-2 truncate max-w-[22ch]">
+                    {typeof r.query === 'string' ? r.query : JSON.stringify(r.query)}
+                  </td>
+                  <td className="px-3 py-2">{r.status ?? 'ok'}</td>
+                  <td className="px-3 py-2 text-right">{r.total_competitors ?? '-'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
-      <div className="rounded border bg-white">
-        <div className="px-4 py-2 border-b font-medium">Your last 50 searches</div>
-        <div className="divide-y">
-          {(!searches || searches.length === 0) && (
-            <div className="p-4 text-gray-500">No searches yet.</div>
-          )}
-          {searches?.map((s) => (
-            <div key={s.id} className="p-4 flex items-center justify-between">
-              <div>
-                <div className="font-medium">
-                  {s.query} — {s.city}
-                </div>
-                <div className="text-sm text-gray-500">
-                  {new Date(s.created_at as any).toLocaleString()} • {s.status}
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <Link className="text-blue-600 underline" href={`/results/${s.id}`}>
-                  View competitors
-                </Link>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="mt-6 text-sm text-gray-600">
-        Tip: open this page in a normal window as <b>User A</b> and in an <b>Incognito</b> window as{' '}
-        <b>User B</b>. Each side should only see their own rows here.
+      <div className="mt-4 flex items-center gap-2">
+        <Link
+          className={`px-3 py-1 rounded border text-sm ${
+            page === 1 ? 'opacity-50 pointer-events-none' : 'hover:bg-gray-50'
+          }`}
+          href={`?page=${page - 1}`}
+        >
+          ← Prev
+        </Link>
+        <span className="text-sm">Page {page}</span>
+        <Link
+          className={`px-3 py-1 rounded border text-sm ${
+            rows && rows.length < pageSize ? 'opacity-50 pointer-events-none' : 'hover:bg-gray-50'
+          }`}
+          href={`?page=${page + 1}`}
+        >
+          Next →
+        </Link>
       </div>
     </main>
   )

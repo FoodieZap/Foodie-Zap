@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import ResultsTable from './ResultsTable'
 
@@ -21,21 +21,46 @@ type Competitor = {
 
 export default function ResultsView({
   items,
-  centerLat,
-  centerLng,
-  starredIds = [],
+  centerLat: centerLatProp = null,
+  centerLng: centerLngProp = null,
+  watchlistIds = [],
+  starredIds = [], // ok to keep even if unused
 }: {
   items: Competitor[]
   centerLat?: number | null
   centerLng?: number | null
   starredIds?: string[]
+  watchlistIds?: string[]
 }) {
   const [mode, setMode] = useState<'list' | 'map'>('list')
+
+  // If center not provided, compute a fallback from item coordinates
+  const { centerLat, centerLng } = useMemo(() => {
+    if (centerLatProp != null && centerLngProp != null) {
+      return { centerLat: centerLatProp, centerLng: centerLngProp }
+    }
+    const coords = (items ?? []).filter(
+      (c) => typeof c.lat === 'number' && typeof c.lng === 'number',
+    ) as Array<Required<Pick<Competitor, 'lat' | 'lng'>>>
+
+    if (coords.length === 0) return { centerLat: null, centerLng: null }
+
+    const { latSum, lngSum } = coords.reduce(
+      (acc, c) => ({
+        latSum: acc.latSum + (c.lat as number),
+        lngSum: acc.lngSum + (c.lng as number),
+      }),
+      { latSum: 0, lngSum: 0 },
+    )
+
+    return { centerLat: latSum / coords.length, centerLng: lngSum / coords.length }
+  }, [items, centerLatProp, centerLngProp])
 
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
         <span className="text-sm text-gray-600">View:</span>
+
         <button
           type="button"
           onClick={() => setMode('list')}
@@ -46,6 +71,7 @@ export default function ResultsView({
         >
           List
         </button>
+
         <button
           type="button"
           onClick={() => setMode('map')}
@@ -59,7 +85,12 @@ export default function ResultsView({
       </div>
 
       {mode === 'list' ? (
-        <ResultsTable items={items} starredIds={starredIds} />
+        <ResultsTable
+          items={items}
+          centerLat={centerLat}
+          centerLng={centerLng}
+          initialWatchlistIds={watchlistIds}
+        />
       ) : (
         <ResultsMap items={items} centerLat={centerLat} centerLng={centerLng} />
       )}

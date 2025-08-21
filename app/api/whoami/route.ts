@@ -4,7 +4,7 @@ import { createSupabaseRoute } from '@/utils/supabase/route'
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
-  const supabase = createSupabaseRoute()
+  const supabase = await createSupabaseRoute()
   const {
     data: { user },
     error,

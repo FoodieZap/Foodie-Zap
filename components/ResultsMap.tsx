@@ -4,7 +4,7 @@ import 'leaflet/dist/leaflet.css'
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import MarkerClusterGroup from 'react-leaflet-cluster'
 import L from 'leaflet'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 type Competitor = {
   id: string
@@ -39,18 +39,24 @@ function FitBounds({ points, center }: { points: [number, number][]; center?: [n
   return null
 }
 
-// (optional) simple default icon fix for Leaflet in bundlers
-const defaultIcon = L.icon({
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-})
-L.Marker.prototype.options.icon = defaultIcon
+// --- Patch default icon once (helps during HMR) ---
+let _iconPatched = false
+function patchDefaultIconOnce() {
+  if (_iconPatched) return
+  const defaultIcon = L.icon({
+    iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+    iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+    shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+  })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ;(L.Marker.prototype as any).options.icon = defaultIcon
+  _iconPatched = true
+}
 
 export default function ResultsMap({
-  items,
+  items = [],
   centerLat,
   centerLng,
 }: {
@@ -58,9 +64,21 @@ export default function ResultsMap({
   centerLat?: number | null
   centerLng?: number | null
 }) {
+  // Hooks must be unconditional and in the same order every render
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    patchDefaultIconOnce()
+  }, [])
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  // Compute points/center/mapKey on every render (safe on server too)
   const points = useMemo(
     () =>
-      items
+      (items ?? [])
         .filter((c) => typeof c.lat === 'number' && typeof c.lng === 'number')
         .map((c) => [c.lat as number, c.lng as number] as [number, number]),
     [items],
@@ -71,48 +89,60 @@ export default function ResultsMap({
       ? ([centerLat, centerLng] as [number, number])
       : undefined
 
+  // Force a fresh Leaflet instance when inputs change
+  const mapKey = useMemo(() => {
+    const c = center ? `${center[0].toFixed(5)}-${center[1].toFixed(5)}` : 'world'
+    return `${c}-${points.length}-${items.length}`
+  }, [center, points.length, items.length])
+
+  // Render: keep layout height even before mount
   return (
-    <div className="rounded border overflow-hidden">
-      <MapContainer
-        style={{ height: 420, width: '100%' }}
-        center={center ?? [0, 0]}
-        zoom={center ? 12 : 2}
-        scrollWheelZoom
-      >
-        <TileLayer
-          attribution="&copy; OpenStreetMap contributors"
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
+    <div className="rounded border overflow-hidden" style={{ height: 420 }}>
+      {!mounted ? null : (
+        <MapContainer
+          key={mapKey}
+          style={{ height: '100%', width: '100%' }}
+          center={center ?? [0, 0]}
+          zoom={center ? 12 : 2}
+          scrollWheelZoom
+          preferCanvas
+        >
+          <TileLayer
+            attribution="&copy; OpenStreetMap contributors"
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
 
-        <FitBounds points={points} center={center} />
+          <FitBounds points={points} center={center} />
 
-        <MarkerClusterGroup chunkedLoading maxClusterRadius={50}>
-          {items.map((c) => {
-            if (typeof c.lat !== 'number' || typeof c.lng !== 'number') return null
-            return (
-              <Marker key={c.id} position={[c.lat, c.lng]}>
-                <Popup>
-                  <div style={{ minWidth: 180 }}>
-                    <div style={{ fontWeight: 600 }}>{c.name ?? 'Unknown'}</div>
-                    <div style={{ fontSize: 12, color: '#555' }}>
-                      {c.source ?? '—'} • Rating {c.rating ?? '—'} • Reviews {c.review_count ?? '—'}
+          <MarkerClusterGroup chunkedLoading maxClusterRadius={50}>
+            {items.map((c) => {
+              if (typeof c.lat !== 'number' || typeof c.lng !== 'number') return null
+              return (
+                <Marker key={c.id} position={[c.lat, c.lng]}>
+                  <Popup>
+                    <div style={{ minWidth: 180 }}>
+                      <div style={{ fontWeight: 600 }}>{c.name ?? 'Unknown'}</div>
+                      <div style={{ fontSize: 12, color: '#555' }}>
+                        {c.source ?? '—'} • Rating {c.rating ?? '—'} • Reviews{' '}
+                        {c.review_count ?? '—'}
+                      </div>
+                      {c.address && <div style={{ fontSize: 12, marginTop: 4 }}>{c.address}</div>}
+                      <div style={{ marginTop: 6 }}>
+                        <a
+                          href={`/competitors/${c.id}`}
+                          style={{ color: '#2563eb', textDecoration: 'underline', fontSize: 12 }}
+                        >
+                          View details
+                        </a>
+                      </div>
                     </div>
-                    {c.address && <div style={{ fontSize: 12, marginTop: 4 }}>{c.address}</div>}
-                    <div style={{ marginTop: 6 }}>
-                      <a
-                        href={`/competitors/${c.id}`}
-                        style={{ color: '#2563eb', textDecoration: 'underline', fontSize: 12 }}
-                      >
-                        View details
-                      </a>
-                    </div>
-                  </div>
-                </Popup>
-              </Marker>
-            )
-          })}
-        </MarkerClusterGroup>
-      </MapContainer>
+                  </Popup>
+                </Marker>
+              )
+            })}
+          </MarkerClusterGroup>
+        </MapContainer>
+      )}
     </div>
   )
 }

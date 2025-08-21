@@ -12,7 +12,7 @@ import { haversine } from '@/lib/geo'
 
 /** GET /api/search → list recent searches for the user */
 export async function GET() {
-  const supabase = createSupabaseRoute()
+  const supabase = await createSupabaseRoute()
   const {
     data: { user },
   } = await supabase.auth.getUser()
@@ -64,7 +64,7 @@ function applyFilters<
 
 /** POST /api/search → create search, fetch competitors, insert rows */
 export async function POST(req: Request) {
-  const supabase = createSupabaseRoute()
+  const supabase = await createSupabaseRoute()
 
   const {
     data: { user },

@@ -30,7 +30,7 @@ function pickSet(sourceHint: string | null | undefined) {
 }
 
 export async function POST(req: Request) {
-  const supabase = createSupabaseRoute()
+  const supabase = await createSupabaseRoute()
   const {
     data: { user },
   } = await supabase.auth.getUser()

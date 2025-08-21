@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { createSupabaseRSC } from '@/utils/supabase/server'
 
 export default async function SearchDetails({ params }: { params: { id: string } }) {
-  const supabase = createSupabaseRSC()
+  const supabase = await createSupabaseRSC()
 
   const {
     data: { user },

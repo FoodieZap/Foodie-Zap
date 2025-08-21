@@ -6,7 +6,7 @@ import { signOut } from '@/app/(auth)/actions'
 
 export default async function Home() {
   // Create read-only Supabase client for Server Components
-  const supabase = createSupabaseRSC()
+  const supabase = await createSupabaseRSC()
 
   // Safely read the current user (do not attempt cookie writes here)
   let user = null as null | { id: string; email?: string | null }

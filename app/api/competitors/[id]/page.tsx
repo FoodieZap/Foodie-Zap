@@ -5,7 +5,7 @@ import Link from 'next/link'
 type Params = { id: string }
 
 export default async function CompetitorDetail({ params }: { params: Params }) {
-  const supabase = createSupabaseRSC()
+  const supabase = await createSupabaseRSC()
 
   // fetch competitor (RLS will enforce access via parent search)
   const { data: competitor, error } = await supabase
