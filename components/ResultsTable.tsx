@@ -1,6 +1,19 @@
 'use client'
 
 import { useMemo, useState, useEffect } from 'react'
+import type { Competitor as NormalizedCompetitor } from '@/lib/normalize'
+
+type Row = NormalizedCompetitor & {
+  id?: string | null
+  _score?: number | null
+}
+
+type ResultsTableProps = {
+  items: Row[]
+  centerLat?: number | null
+  centerLng?: number | null
+  initialWatchlistIds?: string[]
+}
 
 type Competitor = {
   id: string
@@ -15,13 +28,6 @@ type Competitor = {
   _score?: number | null
 }
 
-type ResultsTableProps = {
-  items: Competitor[]
-  centerLat?: number | null
-  centerLng?: number | null
-  initialWatchlistIds?: string[]
-}
-
 type Props = {
   items: Competitor[]
   /** list of competitor ids that are starred in DB (server-provided) */
@@ -30,8 +36,8 @@ type Props = {
 
 export default function ResultsTable({
   items,
-  centerLat = null,
-  centerLng = null,
+  centerLat,
+  centerLng,
   initialWatchlistIds = [],
 }: ResultsTableProps) {
   const [minRating, setMinRating] = useState<number | ''>('')
@@ -191,40 +197,49 @@ export default function ResultsTable({
         {filtered.length === 0 && (
           <div className="p-4 text-gray-500">No competitors matching your filters.</div>
         )}
-        {filtered.map((c) => {
-          const isStar = stars.has(c.id)
-          function toggleStar(id: string): void {
-            throw new Error('Function not implemented.')
+
+        {filtered.map((c, i) => {
+          const isStar = !!c.id && stars.has(c.id)
+
+          function toggleStar(id?: string | null) {
+            if (!id) return
+            // TODO: implement your star/unstar here
+            // e.g., await fetch('/api/watchlist', { method: 'POST', body: JSON.stringify({ id }) })
           }
 
+          const onToggle = () => toggleStar(c.id)
+
           return (
-            <div key={c.id} className="p-4">
+            <div key={c.id ?? `row-${i}`} className="p-4">
               <div className="font-medium flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => toggleStar(c.id)}
-                  disabled={busyId === c.id}
+                  onClick={onToggle}
+                  disabled={!c.id || busyId === c.id}
                   title={isStar ? 'Unstar' : 'Star'}
                   className={`text-lg ${isStar ? 'text-yellow-500' : 'text-gray-400'}`}
                 >
                   {isStar ? '★' : '☆'}
                 </button>
+
                 <span>
                   {c.name ?? 'Unknown'}{' '}
                   <span className="text-xs text-gray-500">({c.source ?? '—'})</span>
                 </span>
+
+                <div className="text-sm text-gray-600 flex flex-wrap gap-x-3 gap-y-1">
+                  {typeof c.rating === 'number' && <span>⭐ {c.rating.toFixed(1)}</span>}
+                  {typeof c.review_count === 'number' && <span>· {c.review_count} reviews</span>}
+                  {!!c.price_level && <span>· {c.price_level}</span>}
+                  {!!c.address && <span className="truncate max-w-[60ch]">{c.address}</span>}
+                </div>
+
                 {c.id && (
                   <a href={`/competitors/${c.id}`} className="text-blue-600 text-sm underline">
                     View
                   </a>
                 )}
               </div>
-              <div className="text-sm text-gray-600">
-                Rating: {c.rating ?? '—'} • Reviews: {c.review_count ?? '—'} • Price:{' '}
-                {c.price_level ?? '—'}
-                {typeof c._score === 'number' && <> • Score: {c._score.toFixed(3)}</>}
-              </div>
-              <div className="text-sm text-gray-600">{c.address ?? '—'}</div>
             </div>
           )
         })}

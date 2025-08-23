@@ -109,12 +109,16 @@ export default async function ResultsPage({
 
   return (
     <main className="max-w-5xl mx-auto p-6 space-y-6">
-      <div>
+      {/* <div>
         <Link href="/history" className="text-blue-600 underline">
           ← Back to history
         </Link>
+      </div> */}
+      <div>
+        <Link href="/dashboard" className="text-blue-600 underline">
+          ← ← Back to Dashboard
+        </Link>
       </div>
-
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold">

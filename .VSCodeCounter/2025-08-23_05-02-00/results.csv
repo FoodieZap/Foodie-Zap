@@ -1,0 +1,70 @@
+"filename", "language", "JSON with Comments", "TypeScript", "JavaScript", "JSON", "PowerShell", "TypeScript JSX", "Markdown", "Ignore", "PostCSS", "comment", "blank", "total"
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/.prettierignore", "Ignore", 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 1, 5
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/.prettierrc", "JSON", 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 1, 7
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/README.md", "Markdown", 0, 0, 0, 0, 0, 0, 20, 0, 0, 0, 14, 34
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/app/(auth)/actions.ts", "TypeScript", 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 3, 11
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/app/actions/auth.ts", "TypeScript", 0, 24, 0, 0, 0, 0, 0, 0, 0, 1, 4, 29
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/app/api/competitors/[id]/page.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 85, 0, 0, 0, 4, 10, 99
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/app/api/competitors/route.ts", "TypeScript", 0, 19, 0, 0, 0, 0, 0, 0, 0, 0, 6, 25
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/app/api/debug/whoami/route.ts", "TypeScript", 0, 10, 0, 0, 0, 0, 0, 0, 0, 0, 3, 13
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/app/api/export-csv/route.ts", "TypeScript", 0, 132, 0, 0, 0, 0, 0, 0, 0, 14, 22, 168
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/app/api/export/xlsx/route.ts", "TypeScript", 0, 86, 0, 0, 0, 0, 0, 0, 0, 4, 11, 101
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/app/api/health/route.ts", "TypeScript", 0, 20, 0, 0, 0, 0, 0, 0, 0, 2, 5, 27
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/app/api/insights/placeholder/route.ts", "TypeScript", 0, 80, 0, 0, 0, 0, 0, 0, 0, 8, 17, 105
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/app/api/insights/route.ts", "TypeScript", 0, 55, 0, 0, 0, 0, 0, 0, 0, 5, 14, 74
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/app/api/menus/placeholder/route.ts", "TypeScript", 0, 69, 0, 0, 0, 0, 0, 0, 0, 6, 14, 89
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/app/api/ping/route.ts", "TypeScript", 0, 11, 0, 0, 0, 0, 0, 0, 0, 1, 3, 15
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/app/api/search/[id]/route.ts", "TypeScript", 0, 42, 0, 0, 0, 0, 0, 0, 0, 9, 10, 61
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/app/api/search/route.ts", "TypeScript", 0, 194, 0, 0, 0, 0, 0, 0, 0, 16, 33, 243
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/app/api/watchlist/route.ts", "TypeScript", 0, 60, 0, 0, 0, 0, 0, 0, 0, 3, 12, 75
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/app/api/whoami/route.ts", "TypeScript", 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 3, 16
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/app/auth/login/actions.ts", "TypeScript", 0, 16, 0, 0, 0, 0, 0, 0, 0, 3, 7, 26
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/app/auth/login/page.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 36, 0, 0, 0, 0, 5, 41
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/app/auth/logout/actions.ts", "TypeScript", 0, 11, 0, 0, 0, 0, 0, 0, 0, 1, 5, 17
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/app/auth/logout/page.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 16, 0, 0, 0, 0, 3, 19
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/app/auth/signup/page.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 75, 0, 0, 0, 1, 10, 86
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/app/dashboard/page.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 61, 0, 0, 0, 2, 8, 71
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/app/debug/rls/[searchId]/page.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 93, 0, 0, 0, 4, 11, 108
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/app/debug/search-tester/page.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 123, 0, 0, 0, 0, 12, 135
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/app/globals.css", "PostCSS", 0, 0, 0, 0, 0, 0, 0, 0, 62, 5, 4, 71
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/app/history/page.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 100, 0, 0, 0, 1, 9, 110
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/app/layout.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 17, 0, 0, 0, 1, 3, 21
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/app/new/page.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 58, 0, 0, 0, 0, 6, 64
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/app/page.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 81, 0, 0, 0, 6, 9, 96
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/app/results/[searchId]/page.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 161, 0, 0, 0, 20, 25, 206
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/app/s/[id]/page.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 81, 0, 0, 0, 4, 12, 97
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/app/watchlist/page.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 64, 0, 0, 0, 1, 7, 72
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/components/ActionsCard.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 23, 0, 0, 0, 0, 1, 24
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/components/GeneratePlaceholders.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 71, 0, 0, 0, 2, 10, 83
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/components/MenuCard.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 34, 0, 0, 0, 0, 2, 36
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/components/Navbar.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 61, 0, 0, 0, 9, 5, 75
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/components/RawLeafletMap.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 290, 0, 0, 0, 8, 16, 314
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/components/ResultsMap.old.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 0, 0, 63, 7, 70
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/components/ResultsTable.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 208, 0, 0, 0, 15, 27, 250
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/components/ResultsView.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 108, 0, 0, 0, 3, 16, 127
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/components/SearchForm.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 108, 0, 0, 0, 1, 17, 126
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/components/WatchlistItem.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 151, 0, 0, 0, 5, 10, 166
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/docs/buildlog'.md", "Markdown", 0, 0, 0, 0, 0, 0, 150, 0, 0, 0, 51, 201
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/lib/external/google.ts", "TypeScript", 0, 80, 0, 0, 0, 0, 0, 0, 0, 6, 12, 98
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/lib/external/yelp.ts", "TypeScript", 0, 41, 0, 0, 0, 0, 0, 0, 0, 0, 5, 46
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/lib/geo.ts", "TypeScript", 0, 9, 0, 0, 0, 0, 0, 0, 0, 1, 1, 11
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/lib/normalize.ts", "TypeScript", 0, 100, 0, 0, 0, 0, 0, 0, 0, 6, 11, 117
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/lib/supabase.ts", "TypeScript", 0, 22, 0, 0, 0, 0, 0, 0, 0, 0, 3, 25
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/lib/supabase/server.ts", "TypeScript", 0, 20, 0, 0, 0, 0, 0, 0, 0, 2, 3, 25
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/lib/supabaseClient.ts", "TypeScript", 0, 3, 0, 0, 0, 0, 0, 0, 0, 1, 3, 7
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/lib/validators.ts", "TypeScript", 0, 10, 0, 0, 0, 0, 0, 0, 0, 4, 5, 19
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/middleware.ts", "TypeScript", 0, 30, 0, 0, 0, 0, 0, 0, 0, 2, 5, 37
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/next-env.d.ts", "TypeScript", 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 2, 6
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/next.config.mjs", "JavaScript", 0, 0, 4, 0, 0, 0, 0, 0, 0, 1, 1, 6
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/package-lock.json", "JSON", 0, 0, 0, 7811, 0, 0, 0, 0, 0, 0, 1, 7812
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/package.json", "JSON", 0, 0, 0, 41, 0, 0, 0, 0, 0, 0, 1, 42
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/postcss.config.js", "JavaScript", 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 1, 7
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/scripts/make-build-log.ps1", "PowerShell", 0, 0, 0, 0, 187, 0, 0, 0, 0, 14, 28, 229
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/tailwind.config.ts", "TypeScript", 0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 2, 8
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/tsconfig.json", "JSON with Comments", 41, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 42
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/tsconfig.tsbuildinfo", "JSON", 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/utils/supabase/client.ts", "TypeScript", 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 3, 11
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/utils/supabase/middleware.ts", "TypeScript", 0, 26, 0, 0, 0, 0, 0, 0, 0, 2, 4, 32
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/utils/supabase/route.ts", "TypeScript", 0, 20, 0, 0, 0, 0, 0, 0, 0, 10, 3, 33
+"/Users/alexanderabiaad/Desktop/Foodie-Zap/Foodie-Zap/utils/supabase/server.ts", "TypeScript", 0, 20, 0, 0, 0, 0, 0, 0, 0, 3, 3, 26
+"Total", "-", 41, 1245, 10, 7859, 187, 2105, 170, 4, 62, 284, 582, 12549

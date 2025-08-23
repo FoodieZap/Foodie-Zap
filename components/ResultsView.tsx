@@ -1,24 +1,31 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import dynamic from 'next/dynamic'
 import ResultsTable from './ResultsTable'
+import dynamic from 'next/dynamic'
+import type { Competitor as NormalizedCompetitor } from '@/lib/normalize'
 
-const ResultsMap = dynamic(() => import('./ResultsMap'), { ssr: false })
-
-type Competitor = {
-  id: string
-  name: string | null
-  source: string | null
-  rating: number | null
-  review_count: number | null
-  price_level: string | null
-  address: string | null
-  lat: number | null
-  lng: number | null
-  _score?: number | null
+///dynamic import, ssr off
+// ... (Competitor type + props unchanged)
+type MapPoint = {
+  id?: string | null
+  name?: string | null
+  lat?: number | null
+  lng?: number | null
 }
 
+type RawLeafletMapProps = {
+  items?: MapPoint[]
+  centerLat?: number | null
+  centerLng?: number | null
+  version?: number
+}
+
+const RawLeafletMap = dynamic<RawLeafletMapProps>(() => import('./RawLeafletMap'), { ssr: false })
+type Competitor = NormalizedCompetitor & {
+  id?: string | null
+  _score?: number | null
+}
 export default function ResultsView({
   items,
   centerLat: centerLatProp = null,
@@ -31,14 +38,16 @@ export default function ResultsView({
   centerLng?: number | null
   starredIds?: string[]
   watchlistIds?: string[]
+
+  /* same as before */
 }) {
   const [mode, setMode] = useState<'list' | 'map'>('list')
+  const [mapVersion, setMapVersion] = useState(0)
 
-  // If center not provided, compute a fallback from item coordinates
   const { centerLat, centerLng } = useMemo(() => {
-    if (centerLatProp != null && centerLngProp != null) {
+    if (centerLatProp != null && centerLngProp != null)
       return { centerLat: centerLatProp, centerLng: centerLngProp }
-    }
+
     const coords = (items ?? []).filter(
       (c) => typeof c.lat === 'number' && typeof c.lng === 'number',
     ) as Array<Required<Pick<Competitor, 'lat' | 'lng'>>>
@@ -74,7 +83,10 @@ export default function ResultsView({
 
         <button
           type="button"
-          onClick={() => setMode('map')}
+          onClick={() => {
+            setMode('map')
+            setMapVersion((v) => v + 1) // force fresh map whenever toggling to Map
+          }}
           className={`px-3 py-1.5 rounded border text-sm ${
             mode === 'map' ? 'bg-gray-900 text-white' : 'hover:bg-gray-100'
           }`}
@@ -82,17 +94,32 @@ export default function ResultsView({
         >
           Map
         </button>
+
+        {mode === 'map' && (
+          <button
+            type="button"
+            onClick={() => setMapVersion((v) => v + 1)} // manual reset button
+            className="ml-2 px-3 py-1.5 rounded border text-sm hover:bg-gray-100"
+          >
+            Reset Map
+          </button>
+        )}
       </div>
 
       {mode === 'list' ? (
         <ResultsTable
-          items={items}
+          items={items as any}
           centerLat={centerLat}
           centerLng={centerLng}
           initialWatchlistIds={watchlistIds}
         />
       ) : (
-        <ResultsMap items={items} centerLat={centerLat} centerLng={centerLng} />
+        <RawLeafletMap
+          items={items}
+          centerLat={centerLat}
+          centerLng={centerLng}
+          version={mapVersion}
+        />
       )}
     </div>
   )

@@ -1,38 +1,25 @@
 'use server'
 
-import { cookies } from 'next/headers'
-import { createServerClient, type CookieOptions } from '@supabase/ssr'
+import { redirect } from 'next/navigation'
+import { createSupabaseServer } from '@/lib/supabase' // your server ACTION helper
 
 export async function login(formData: FormData) {
-  const email = String(formData.get('email') ?? '')
-  const password = String(formData.get('password') ?? '')
+  const email = String(formData.get('email') || '')
+  const password = String(formData.get('password') || '')
 
-  const cookieStore = await cookies() // ✅ Next 15 requires await
+  if (!email || !password) {
+    // you can throw an error and catch it on the page if you render errors
+    throw new Error('Email and password are required')
+  }
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value
-        },
-        set(name: string, value: string, options: CookieOptions) {
-          // In Server Actions, cookies() is mutable. TS thinks it's readonly, so cast to any.
-          ;(cookieStore as any).set({ name, value, ...options })
-        },
-        remove(name: string, options: CookieOptions) {
-          ;(cookieStore as any).set({ name, value: '', ...options })
-        },
-      },
-    },
-  )
+  const supabase = await createSupabaseServer()
 
   const { error } = await supabase.auth.signInWithPassword({ email, password })
   if (error) {
-    // return an error shape your UI expects
-    return { ok: false, error: error.message }
+    // Option A: rethrow to show an error message on the page
+    throw new Error(error.message)
   }
 
-  return { ok: true }
+  // Success: send them to dashboard or home
+  redirect('/dashboard')
 }

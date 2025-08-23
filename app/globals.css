@@ -8,3 +8,63 @@
 body {
   @apply bg-white text-gray-900;
 }
+/* --- Foodie-Zap map styling --- */
+.fz-pin-wrap {
+  /* wrapper from L.divIcon; reset Leaflet defaults */
+  background: transparent !important;
+  border: 0 !important;
+}
+.fz-pin {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: #2563eb; /* brand blue */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  border: 2px solid #fff;
+}
+.fz-pin::after {
+  /* little pointer */
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  transform: translateX(-50%) rotate(45deg);
+  width: 10px;
+  height: 10px;
+  background: #2563eb;
+  border-left: 2px solid #fff;
+  border-bottom: 2px solid #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+/* Tooltip: wrap long lines, prevent overflow */
+.leaflet-tooltip.fz-tip {
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+  padding: 8px 10px;
+}
+.leaflet-tooltip.fz-tip .leaflet-tooltip-content {
+  max-width: 260px;
+  white-space: normal; /* allow wrapping */
+  word-break: break-word; /* break long tokens */
+  overflow-wrap: anywhere; /* force wrap if needed */
+  line-height: 1.25;
+}
+
+/* Cluster bubbles */
+.fz-cluster {
+  background: #111827; /* near-black */
+  color: #fff;
+  border-radius: 9999px;
+  border: 2px solid #fff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  font-weight: 700;
+  font-size: 12px;
+}
