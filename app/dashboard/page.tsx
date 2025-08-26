@@ -1,7 +1,9 @@
 import { createSupabaseRSC } from '@/utils/supabase/server'
 import SearchForm from '@/components/SearchForm'
-import Link from 'next/link'
-
+import { Suspense } from 'react'
+import RecentSearches from '@/components/RecentSearches'
+import RecentSearchesSkeleton from '@/components/RecentSearchesSkeleton'
+import TipsInsights from '@/components/TipsInsights'
 export default async function DashboardPage() {
   const supabase = await createSupabaseRSC()
 
@@ -29,41 +31,22 @@ export default async function DashboardPage() {
     )
   }
 
-  // recent searches (RLS ensures only this user's)
-  const { data: searches } = await supabase
-    .from('searches')
-    .select('id, query, city, status, created_at')
-    .order('created_at', { ascending: false })
-    .limit(10)
-
   return (
     <main className="max-w-4xl mx-auto p-6 space-y-8">
       <h1 className="text-xl font-semibold">Dashboard</h1>
 
+      {/* search bar */}
       <SearchForm defaultCity="" />
 
-      <div className="rounded border bg-white">
-        <div className="px-4 py-2 border-b font-medium">Recent searches</div>
-        <div className="divide-y">
-          {(!searches || searches.length === 0) && (
-            <div className="p-4 text-gray-500">No searches yet.</div>
-          )}
-          {searches?.map((s) => (
-            <div key={s.id} className="p-4 flex items-center justify-between">
-              <div>
-                <div className="font-medium">
-                  {s.query} — {s.city}
-                </div>
-                <div className="text-sm text-gray-500">
-                  {new Date(s.created_at as any).toLocaleString()} • {s.status}
-                </div>
-              </div>
-              <Link className="text-blue-600 underline" href={`/results/${s.id}`}>
-                View results
-              </Link>
-            </div>
-          ))}
-        </div>
+      {/* two-column layout */}
+      <div className="grid gap-6 md:grid-cols-2">
+        {/* left: recent searches */}
+        <Suspense fallback={<RecentSearchesSkeleton />}>
+          <RecentSearches />
+        </Suspense>
+
+        {/* right: tips & insights */}
+        <TipsInsights />
       </div>
     </main>
   )

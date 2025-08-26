@@ -198,3 +198,49 @@ Compress-Archive -Path "C:\Users\alexa\Foodie-Zap\*" -DestinationPath "C:\Users\
 >
 > - When we finish a feature, update its status here.
 > - When starting a new tab, paste the most recent **Working Notes** and the link to this file.
+
+## Planned Features (MVP+ / Roadmap)
+
+### Data & Insights
+
+- **Apify Menus pipeline** → store structured menu data per competitor (avg price, items, categories).
+- **AI Menu Analyzer (on-demand)** → Given stored menu data, produce:
+  - Top-performing items
+  - Price bands and outliers
+  - Cross-sell/upsell bundles
+  - Pricing recommendations
+  - Suggested limited-time offers (LTOs)
+- **Global Insights upgrade** → richer, multi-axis suggestions across Pricing, Menu, Marketing, Ops (deterministic + LLM hybrid).
+
+### Competitor Page Enhancements
+
+- **Notes v2**
+  - Rich text + tags
+  - Search/filter within notes
+  - Pin note to top
+- **Photos & Media**
+  - Pull a couple of images (Google/Yelp) where available
+  - Lightbox viewer
+- **Contact & Links**
+  - Quick actions: Call, Directions, Website, “Open in Maps”
+- **Open Hours & Live Status**
+  - Parse/store hours, show “Open now/Closed” with next open time
+- **Menu Preview**
+  - Compact preview from stored Apify data (categories → top items, avg price)
+  - “Analyze Menu” button → triggers AI Menu Analyzer (writes results to DB)
+- **Competitor Similarity**
+  - “Similar spots nearby” (cosine on category/price/rating vectors)
+- **Performance Signals**
+  - Trend badges: “High rating”, “High review velocity”, “Price leader”, etc.
+- **Watchlist Intelligence**
+  - Show if this competitor is on watchlist (done)
+  - Mini notes count badge (done)
+  - Quick add note inline
+
+### Results Page (for reference)
+
+- **AI Menu Analyzer trigger** (on-demand per search)
+- **Menus pipeline** surfaced inline (avg price, top items per row)
+- **Filters expansion** (hours open now, category, has menu/photos)
+
+_Last updated: add today’s date here_

@@ -1,0 +1,33 @@
+// lib/cursor.ts
+// Tiny helpers to encode/decode a cursor { rc: number, id: string }
+
+function toBase64Url(s: string) {
+  return Buffer.from(s, 'utf8')
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '')
+}
+
+function fromBase64Url(s: string) {
+  const pad = s.length % 4 === 2 ? '==' : s.length % 4 === 3 ? '=' : ''
+  const b64 = s.replace(/-/g, '+').replace(/_/g, '/') + pad
+  return Buffer.from(b64, 'base64').toString('utf8')
+}
+
+export type Cursor = { rc: number; id: string }
+
+export function encodeCursor(c: Cursor): string {
+  return toBase64Url(JSON.stringify(c))
+}
+
+export function decodeCursor(raw: string | null | undefined): Cursor | null {
+  if (!raw) return null
+  try {
+    const o = JSON.parse(fromBase64Url(raw))
+    if (typeof o?.rc === 'number' && typeof o?.id === 'string') return o
+    return null
+  } catch {
+    return null
+  }
+}

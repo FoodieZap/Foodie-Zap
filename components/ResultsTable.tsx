@@ -1,22 +1,9 @@
 'use client'
 
-import { useMemo, useState, useEffect } from 'react'
-import type { Competitor as NormalizedCompetitor } from '@/lib/normalize'
+import { useEffect, useMemo, useState, useTransition } from 'react'
 
-type Row = NormalizedCompetitor & {
+type Row = {
   id?: string | null
-  _score?: number | null
-}
-
-type ResultsTableProps = {
-  items: Row[]
-  centerLat?: number | null
-  centerLng?: number | null
-  initialWatchlistIds?: string[]
-}
-
-type Competitor = {
-  id: string
   name: string | null
   source: string | null
   rating: number | null
@@ -28,10 +15,28 @@ type Competitor = {
   _score?: number | null
 }
 
-type Props = {
-  items: Competitor[]
-  /** list of competitor ids that are starred in DB (server-provided) */
-  starredIds?: string[]
+type ResultsTableProps = {
+  items: Row[]
+  centerLat?: number | null
+  centerLng?: number | null
+  initialWatchlistIds?: string[]
+}
+
+function distKm(
+  aLat?: number | null,
+  aLng?: number | null,
+  bLat?: number | null,
+  bLng?: number | null,
+) {
+  if (aLat == null || aLng == null || bLat == null || bLng == null) return Infinity
+  const toRad = (v: number) => (v * Math.PI) / 180
+  const R = 6371
+  const dLat = toRad((bLat as number) - (aLat as number))
+  const dLng = toRad((bLng as number) - (aLng as number))
+  const lat1 = toRad(aLat as number)
+  const lat2 = toRad(bLat as number)
+  const x = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2
+  return 2 * R * Math.asin(Math.sqrt(x))
 }
 
 export default function ResultsTable({
@@ -40,97 +45,93 @@ export default function ResultsTable({
   centerLng,
   initialWatchlistIds = [],
 }: ResultsTableProps) {
+  // UI state
   const [minRating, setMinRating] = useState<number | ''>('')
   const [sortBy, setSortBy] = useState<'score' | 'rating' | 'reviews'>('score')
-  const [stars, setStars] = useState<Set<string>>(new Set())
-  const [busyId, setBusyId] = useState<string | null>(null)
-  const [maxDistanceKm, setMaxDistanceKm] = useState<string>('')
   const [price, setPrice] = useState<string>('')
-  const [localWatchlist, setLocalWatchlist] = useState<Set<string>>(
-    () => new Set(initialWatchlistIds),
-  )
+  const [maxDistanceKm, setMaxDistanceKm] = useState<string>('')
 
-  function distKm(
-    aLat?: number | null,
-    aLng?: number | null,
-    bLat?: number | null,
-    bLng?: number | null,
-  ) {
-    if (aLat == null || aLng == null || bLat == null || bLng == null) return Infinity
-    const toRad = (v: number) => (v * Math.PI) / 180
-    const R = 6371
-    const dLat = toRad((bLat as number) - (aLat as number))
-    const dLng = toRad((bLng as number) - (aLng as number))
-    const lat1 = toRad(aLat as number)
-    const lat2 = toRad(bLat as number)
-    const x = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2
-    return 2 * R * Math.asin(Math.sqrt(x))
-  }
+  // watchlist + transition
+  const [stars, setStars] = useState<Set<string>>(new Set(initialWatchlistIds))
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const [isPending, startTransition] = useTransition() // ✅ correct order
 
-  // 🔁 Keep local set in sync with server prop whenever it changes
-  // useEffect(() => {
-  //   setStars(new Set(starredIds))
-  // }, [starredIds])
+  useEffect(() => {
+    setStars(new Set(initialWatchlistIds))
+  }, [initialWatchlistIds])
 
   const filtered = useMemo(() => {
     let list = [...(items ?? [])]
 
-    // rating
-    if (minRating !== '') {
-      list = list.filter((x) => (x.rating ?? 0) >= Number(minRating))
-    }
+    if (minRating !== '') list = list.filter((x) => (x.rating ?? 0) >= Number(minRating))
+    if (price) list = list.filter((x) => (x.price_level ?? '') === price)
 
-    // price
-    if (price) {
-      list = list.filter((x) => (x.price_level ?? '') === price)
-    }
-
-    // distance
     const maxD = Number(maxDistanceKm)
     if (!Number.isNaN(maxD) && maxD > 0 && centerLat != null && centerLng != null) {
-      list = list.filter((x) => distKm(centerLat, centerLng, x.lat ?? null, x.lng ?? null) <= maxD)
+      list = list.filter((x) => distKm(centerLat, centerLng, x.lat, x.lng) <= maxD)
     }
 
-    // sort
-    const sorted = [...list].sort((a, b) => {
+    list.sort((a, b) => {
       if (sortBy === 'score') return (b._score ?? 0) - (a._score ?? 0)
       if (sortBy === 'rating') return (b.rating ?? 0) - (a.rating ?? 0)
       if (sortBy === 'reviews') return (b.review_count ?? 0) - (a.review_count ?? 0)
       return 0
     })
 
-    return sorted
+    return list
   }, [items, minRating, price, maxDistanceKm, sortBy, centerLat, centerLng])
 
-  async function addToWatchlist(id: string) {
-    // optimistic
-    setLocalWatchlist((prev) => new Set([...prev, id]))
-    const res = await fetch('/api/watchlist', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ competitor_id: id }),
-    })
-    if (!res.ok) {
-      // rollback
-      setLocalWatchlist((prev) => {
-        const copy = new Set(prev)
-        copy.delete(id)
-        return copy
-      })
-    }
-  }
+  async function toggleStar(id?: string | null) {
+    if (!id || busyId) return
+    const alreadyStarred = stars.has(id)
 
-  async function removeFromWatchlist(id: string) {
-    // optimistic
-    setLocalWatchlist((prev) => {
-      const copy = new Set(prev)
-      copy.delete(id)
-      return copy
+    // If user is un-starring, warn them first
+    if (alreadyStarred) {
+      const ok = window.confirm(
+        'Are you sure you want to remove this from your watchlist? All notes for this location will be deleted.',
+      )
+      if (!ok) return
+    }
+
+    setBusyId(id)
+
+    // optimistic flip
+    setStars((prev) => {
+      const next = new Set(prev)
+      if (alreadyStarred) next.delete(id)
+      else next.add(id)
+      return next
     })
-    const res = await fetch(`/api/watchlist?competitor_id=${id}`, { method: 'DELETE' })
-    if (!res.ok) {
-      // rollback
-      setLocalWatchlist((prev) => new Set([...prev, id]))
+
+    try {
+      if (alreadyStarred) {
+        // DELETE (remove + notes)
+        const res = await fetch(`/api/watchlist?competitor_id=${encodeURIComponent(id)}`, {
+          method: 'DELETE',
+        })
+        if (!res.ok) throw new Error(await res.text())
+      } else {
+        // Guard against double-save on client
+        // (server should also enforce unique (user_id, competitor_id))
+        const res = await fetch('/api/watchlist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ competitor_id: id }),
+        })
+        if (!res.ok) throw new Error(await res.text())
+      }
+    } catch (e) {
+      // rollback on failure
+      setStars((prev) => {
+        const next = new Set(prev)
+        if (alreadyStarred) next.add(id) // we tried to remove but failed
+        else next.delete(id) // we tried to add but failed
+        return next
+      })
+      console.error('Star toggle failed', e)
+      alert('Sorry, something went wrong. Please try again.')
+    } finally {
+      setBusyId(null)
     }
   }
 
@@ -138,6 +139,7 @@ export default function ResultsTable({
     <div className="rounded border bg-white">
       <div className="px-4 py-2 border-b flex items-center gap-3">
         <div className="font-medium">Competitors (List)</div>
+
         <div className="ml-auto flex items-center gap-3 text-sm">
           <label className="flex items-center gap-2">
             <span>Min rating</span>
@@ -151,6 +153,7 @@ export default function ResultsTable({
               className="w-20 rounded border px-2 py-1"
             />
           </label>
+
           <label className="flex items-center gap-2">
             <span>Sort by</span>
             <select
@@ -163,6 +166,7 @@ export default function ResultsTable({
               <option value="reviews">Reviews</option>
             </select>
           </label>
+
           <label className="text-sm">
             Price:&nbsp;
             <select
@@ -198,47 +202,52 @@ export default function ResultsTable({
           <div className="p-4 text-gray-500">No competitors matching your filters.</div>
         )}
 
-        {filtered.map((c, i) => {
-          const isStar = !!c.id && stars.has(c.id)
-
-          function toggleStar(id?: string | null) {
-            if (!id) return
-            // TODO: implement your star/unstar here
-            // e.g., await fetch('/api/watchlist', { method: 'POST', body: JSON.stringify({ id }) })
-          }
-
-          const onToggle = () => toggleStar(c.id)
+        {filtered.map((c) => {
+          const id = c.id ?? undefined
+          const isStar = id ? stars.has(id) : false
 
           return (
-            <div key={c.id ?? `row-${i}`} className="p-4">
-              <div className="font-medium flex items-center gap-3">
+            <div key={id ?? `${c.name}-${Math.random()}`} className="p-4">
+              {/* top line */}
+              <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={onToggle}
-                  disabled={!c.id || busyId === c.id}
+                  onClick={() => toggleStar(id)}
+                  disabled={!id || busyId === id || isPending}
                   title={isStar ? 'Unstar' : 'Star'}
-                  className={`text-lg ${isStar ? 'text-yellow-500' : 'text-gray-400'}`}
+                  aria-label={isStar ? 'Unstar' : 'Star'}
+                  className={`text-lg ${
+                    isStar ? 'text-amber-500' : 'text-gray-400 hover:text-gray-600'
+                  } disabled:opacity-50`}
                 >
                   {isStar ? '★' : '☆'}
                 </button>
 
-                <span>
+                <div className="font-medium">
                   {c.name ?? 'Unknown'}{' '}
                   <span className="text-xs text-gray-500">({c.source ?? '—'})</span>
-                </span>
-
-                <div className="text-sm text-gray-600 flex flex-wrap gap-x-3 gap-y-1">
-                  {typeof c.rating === 'number' && <span>⭐ {c.rating.toFixed(1)}</span>}
-                  {typeof c.review_count === 'number' && <span>· {c.review_count} reviews</span>}
-                  {!!c.price_level && <span>· {c.price_level}</span>}
-                  {!!c.address && <span className="truncate max-w-[60ch]">{c.address}</span>}
                 </div>
 
-                {c.id && (
-                  <a href={`/competitors/${c.id}`} className="text-blue-600 text-sm underline">
+                {id && (
+                  <a href={`/competitors/${id}`} className="text-blue-600 text-sm underline">
                     View
                   </a>
                 )}
+              </div>
+
+              {/* second line — with yellow rating star */}
+              <div className="text-sm text-gray-700 mt-1 flex flex-wrap items-center gap-2">
+                {typeof c.rating === 'number' && (
+                  <span className="inline-flex items-center gap-1">
+                    <span className="text-yellow-500">★</span>
+                    <span>{c.rating.toFixed(1)}</span>
+                  </span>
+                )}
+                {typeof c.review_count === 'number' && (
+                  <span className="text-gray-600">· {c.review_count} reviews</span>
+                )}
+                {c.price_level && <span className="text-gray-600">· {c.price_level}</span>}
+                {c.address && <span className="text-gray-600">· {c.address}</span>}
               </div>
             </div>
           )

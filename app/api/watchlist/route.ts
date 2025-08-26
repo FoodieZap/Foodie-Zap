@@ -23,9 +23,43 @@ export async function GET() {
     .order('created_at', { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ items: data })
+  return NextResponse.json({ ok: true })
 }
+export async function PATCH(req: Request) {
+  const supabase = await createSupabaseRoute()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  let body: any = {}
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+  }
+
+  const competitor_id = String(body.competitor_id || '').trim()
+  const note = typeof body.note === 'string' ? body.note : ''
+
+  if (!competitor_id) {
+    return NextResponse.json({ error: 'competitor_id is required' }, { status: 400 })
+  }
+
+  // Upsert note; assumes a unique key on (user_id, competitor_id). If you don’t have it,
+  // upsert will still work but it’s good to add this unique index later.
+  const { error } = await supabase.from('watchlist').upsert(
+    {
+      user_id: user.id,
+      competitor_id,
+      note,
+    },
+    { onConflict: 'user_id,competitor_id' },
+  )
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true })
+}
 export async function POST(req: Request) {
   const supabase = await createSupabaseRoute()
   const {
