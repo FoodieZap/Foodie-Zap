@@ -125,4 +125,5 @@ export default async function WatchlistPage() {
       )}
     </main>
   )
+  //type shit bratukha
 }
