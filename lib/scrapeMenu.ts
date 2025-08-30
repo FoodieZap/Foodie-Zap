@@ -1,9 +1,22 @@
+// lib/scrapeMenu.ts
 import { load as loadHTML } from 'cheerio'
 import { fetch } from 'undici'
+import { fetchHtml } from './http'
+import { discoverMenuUrl } from './menuDiscovery'
+
+// NOTE: We will wire external provider scrapers later. For now, keep only local adapters.
+// If/when you add files under lib/scrapers/*, uncomment these imports and remove the local duplicates.
+// import { scrapeYelp } from './scrapers/yelp'
+// import { scrapeDoordash } from './scrapers/doordash'
+// import { scrapeUbereats } from './scrapers/ubereats'
+// import { scrapeGrubhub } from './scrapers/grubhub'
+// import { scrapeToast as scrapeToastExt } from './scrapers/toast'
+// import { scrapeSquare as scrapeSquareExt } from './scrapers/square'
+// import { scrapeClover } from './scrapers/clover'
 
 export type ScrapedMenu = {
   avg_price: number | null
-  top_items: Array<{ name: string; price?: number | null }> | null
+  top_items: Array<{ name: string; price?: number | null; description?: string }> | null
   source: 'generic' | 'square' | 'toast' | 'pdf' | 'unsupported'
 }
 
@@ -35,38 +48,46 @@ function cleanItemName(s: string) {
   return name
 }
 
-/** ---------- domain adapters ---------- */
+/** ---------- LOCAL domain adapters (safe now) ---------- */
+// If you later un-comment external imports above, delete these duplicates.
 
-async function scrapeSquare(url: string, html: string): Promise<ScrapedMenu | null> {
-  // Square sites have structured sections; the generic parser often works well already,
-  // but we can be a little smarter by preferring ".ProductItem" blocks.
+async function scrapeSquareLocal(url: string, html: string): Promise<ScrapedMenu | null> {
   const $ = loadHTML(html)
   const items: Array<{ name: string; price?: number | null }> = []
-  $('.ProductItem, [data-item-name], .grid-item').each((_, el) => {
+  $('.ProductItem, [data-item-name], .grid-item, [data-test="item-card"]').each((_, el) => {
     const name = cleanItemName(
-      $(el).attr('data-item-name') || $(el).find('.name, .title').first().text(),
+      $(el).attr('data-item-name') ||
+        $(el).find('.name, .title, [data-test="item-name"]').first().text(),
     )
-    const priceText = $(el).find('.price, [data-item-price]').first().text()
+
+    const priceText = $(el)
+      .find('.price, [datna-item-price], [data-test="item-price"]')
+      .first()
+      .text()
     const priceMatch = parsePricesFromText(priceText)[0] ?? null
     if (name) items.push({ name, price: priceMatch ?? null })
   })
   if (!items.length) return null
   const avg = computeAvg(items.map((i) => i.price!).filter(Boolean) as number[])
-  return { avg_price: avg, top_items: items.slice(0, 8), source: 'square' }
+  return { avg_price: avg, top_items: items.slice(0, 12), source: 'square' }
 }
 
-async function scrapeToast(url: string, html: string): Promise<ScrapedMenu | null> {
+async function scrapeToastLocal(url: string, html: string): Promise<ScrapedMenu | null> {
   const $ = loadHTML(html)
   const items: Array<{ name: string; price?: number | null }> = []
-  $('[data-testid], .menuItem, .menu-item, .MenuItem').each((_, el) => {
-    const name = cleanItemName($(el).find('.name, .menuItemName, [data-testid*="name"]').text())
-    const priceText = $(el).find('.price, .menuItemPrice, [data-testid*="price"]').text()
+  $('[data-testid], .menuItem, .menu-item, .MenuItem, .menu-item-container').each((_, el) => {
+    const name = cleanItemName(
+      $(el).find('.name, .menuItemName, [data-testid*="name"], .menu-item-name').text(),
+    )
+    const priceText = $(el)
+      .find('.price, .menuItemPrice, [data-testid*="price"], .menu-item-price')
+      .text()
     const price = parsePricesFromText(priceText)[0] ?? null
     if (name) items.push({ name, price })
   })
   if (!items.length) return null
   const avg = computeAvg(items.map((i) => i.price!).filter(Boolean) as number[])
-  return { avg_price: avg, top_items: items.slice(0, 8), source: 'toast' }
+  return { avg_price: avg, top_items: items.slice(0, 12), source: 'toast' }
 }
 
 async function scrapePdf(buffer: Buffer): Promise<ScrapedMenu | null> {
@@ -84,70 +105,239 @@ async function scrapePdf(buffer: Buffer): Promise<ScrapedMenu | null> {
     const name = cleanItemName(line.replace(/\$?\d[\d.,]*/g, '').trim())
     const price = parsePricesFromText(line)[0] ?? null
     if (name) items.push({ name, price })
-    if (items.length >= 10) break
+    if (items.length >= 12) break
   }
   if (!items.length && avg == null) return null
-  return { avg_price: avg, top_items: items.slice(0, 10), source: 'pdf' }
+  return { avg_price: avg, top_items: items.slice(0, 12), source: 'pdf' }
 }
 
 /** ---------- generic fallback ---------- */
 
 async function scrapeGeneric(html: string): Promise<ScrapedMenu | null> {
   const $ = loadHTML(html)
-  const bodyText = $('body').text() || ''
-  const prices = parsePricesFromText(bodyText)
-  const avg = computeAvg(prices)
 
-  // Try to pair nearby names with prices by scanning simple list-like elements
-  const items: Array<{ name: string; price?: number | null }> = []
-  $('li, p, .menu-item, .MenuItem, .item, .product').each((_, el) => {
-    const text = $(el).text()
-    const price = parsePricesFromText(text)[0] ?? null
-    const pieces = text.split(/\s{2,}| - | – | — /)
-    const name = cleanItemName(pieces[0] || '')
-    if (name) items.push({ name, price })
-    if (items.length >= 10) return false
+  $('script, style, noscript, svg, iframe').remove()
+
+  const MENU_WORDS =
+    /(menu|entrees|mains|starters|appetizers|pizzas?|burgers?|sandwich(?:es)?|salads?|drinks?|beverages?|sides?|desserts?)/i
+
+  type Cand = { el: any; score: number }
+  const candidates: Cand[] = []
+
+  $('body *').each((_, el) => {
+    const t = $(el)
+      .text()
+      .replace(/\s{2,}/g, ' ')
+      .trim()
+    if (!t || t.length < 30) return
+
+    const priceTokens = t.match(/\$?\d[\d.,]*/g) || []
+    const hasMenuWord = MENU_WORDS.test(t)
+
+    // Must show *some* evidence it's a menu block
+    if (priceTokens.length < 2 && !(priceTokens.length >= 1 && hasMenuWord)) return
+
+    // Score price density higher, penalize giant blobs
+    const score = priceTokens.length * 3 + (hasMenuWord ? 1 : 0) - Math.max(0, t.length / 2000)
+    if (score >= 3) candidates.push({ el, score })
   })
 
-  if (avg == null && !items.length) return null
-  return { avg_price: avg, top_items: items.length ? items : null, source: 'generic' }
+  candidates.sort((a, b) => b.score - a.score)
+  const top = candidates.slice(0, 6)
+
+  const items: Array<{ name: string; price?: number | null; description?: string }> = []
+  const pricesForAvg: number[] = []
+
+  for (const c of top) {
+    const lines = loadHTML($(c.el).html() || '')('body')
+      .text()
+      .replace(/\r/g, '')
+      .split(/\n+/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+
+    let currentSection: string | undefined
+
+    for (const line of lines) {
+      // Section-like heading
+      if (
+        /^[A-Z][A-Za-z0-9 '&-]{2,30}$/.test(line) &&
+        MENU_WORDS.test(line) &&
+        !/\$?\d[\d.,]*/.test(line)
+      ) {
+        currentSection = line
+        continue
+      }
+
+      // Item line containing a price
+      if (/\$?\d[\d.,]*/.test(line)) {
+        const price = parsePricesFromText(line)[0] ?? null
+        let name = cleanItemName(
+          line
+            .replace(/\$?\d[\d.,]*/g, '')
+            .replace(/[•\-–—|]+/g, ' ')
+            .trim(),
+        )
+        if (name && name.length <= 120) {
+          items.push({ name, price })
+          if (price != null) pricesForAvg.push(price)
+        }
+        continue
+      }
+
+      // Description line right after item
+      c // before pushing items, ignore obvious non-menu lines
+      const HOURS =
+        /\b(mon(day)?|tue(s(day)?)?|wed(nesday)?|thu(rs(day)?)?|fri(day)?|sat(urday)?|sun(day)?)\b.*\b(am|pm)\b/i
+      const TIME_ONLY = /(^|[^0-9])[0-2]?\d\s*(:\s*\d{2})?\s*(am|pm)\b/i
+      const ADDRESSY =
+        /\b(ave|avenue|st|street|rd|road|blvd|boulevard|suite|ste|fl|floor|miami|fl|tx|ca|ny|va)\b/i
+      const LEGAL = /(all rights reserved|privacy|terms|cookie|skip to content)/i
+
+      // Lines containing a price → treat as item rows (BUT filter junk)
+      const hasPrice = /\$?\d[\d.,]*/.test(line)
+      if (hasPrice) {
+        if (HOURS.test(line) || TIME_ONLY.test(line) || LEGAL.test(line) || ADDRESSY.test(line))
+          continue
+        const price = parsePricesFromText(line)[0] ?? null
+        let name = cleanItemName(
+          line
+            .replace(/\$?\d[\d.,]*/g, '')
+            .replace(/[•\-–—|]+/g, ' ')
+            .trim(),
+        )
+        if (name && name.length <= 120) {
+          items.push({ name, price })
+          if (price != null) pricesForAvg.push(price)
+        }
+        continue
+      }
+
+      // Short description line that immediately follows an item (but avoid hours/addresses)
+      const prev = items.at(-1)
+      if (
+        prev &&
+        !/\$?\d[\d.,]*/.test(line) &&
+        line.length <= 160 &&
+        !LEGAL.test(line) &&
+        !HOURS.test(line) &&
+        !TIME_ONLY.test(line) &&
+        !ADDRESSY.test(line)
+      ) {
+        if (!prev.description && !/^\p{P}+$/u.test(line)) {
+          prev.description = line
+        }
+      }
+    }
+  }
+
+  // dedupe by name+price
+  const seen = new Set<string>()
+  const uniq: Array<{ name: string; price?: number | null; description?: string }> = []
+  for (const it of items) {
+    const key = (it.name + '|' + (it.price ?? '')).toLowerCase()
+    if (!seen.has(key)) {
+      seen.add(key)
+      uniq.push(it)
+    }
+  }
+
+  const avg = computeAvg(pricesForAvg)
+  if (avg == null && !uniq.length) return null
+  return { avg_price: avg, top_items: uniq.slice(0, 12), source: 'generic' }
 }
 
-/** ---------- entry point ---------- */
-
+/** ---------- entry points ---------- */
+scrapeGeneric
+// Main: fetches the URL (handles PDF vs HTML) and routes to adapters → generic
 export async function scrapeMenuFromUrl(url: string): Promise<ScrapedMenu> {
   // refuse marketplaces in this MVP (fast + clear UX)
   if (/ubereats\.com|doordash\.com|grubhub\.com/i.test(url)) {
     return { avg_price: null, top_items: null, source: 'unsupported' }
   }
 
-  const res = await fetch(url, { redirect: 'follow' })
-  const contentType = res.headers.get('content-type') || ''
-  if (!res.ok) throw new Error(`fetch failed (${res.status})`)
+  // If it's a bare homepage, try to jump to an actual menu
+  try {
+    const u = new URL(url)
+    if (u.pathname === '/' || u.pathname.length <= 1) {
+      const discovered = await discoverMenuUrl(url)
+      if (discovered) url = discovered
+    }
+  } catch {}
 
-  // PDF?
+  const { html, contentType } = await fetchHtml(url)
   if (contentType.includes('application/pdf')) {
+    const res = await fetch(url)
     const buf = Buffer.from(await res.arrayBuffer())
     const pdf = await scrapePdf(buf)
-    if (pdf) return pdf
-    return { avg_price: null, top_items: null, source: 'pdf' }
+    return pdf ?? { avg_price: null, top_items: null, source: 'pdf' }
   }
 
-  // HTML
-  const html = await res.text()
+  return await scrapeMenuUsingHtml(url, html)
+}
+
+// Alternate entry: caller already has HTML
+export async function scrapeMenuUsingHtml(url: string, html: string): Promise<ScrapedMenu> {
   const host = new URL(url).hostname
 
-  // adapters first
-  if (/square\.site$|\.square\.site$/i.test(host)) {
-    const sq = await scrapeSquare(url, html)
-    if (sq) return sq
-  }
-  if (/toasttab\.com$/i.test(host) || host.includes('.toasttab.')) {
-    const tt = await scrapeToast(url, html)
-    if (tt) return tt
+  // Minimal Yelp adapter (works on /menu pages and many biz pages that render menu items)
+  if (/yelp\.com$/i.test(host) || host.endsWith('.yelp.com')) {
+    const $ = loadHTML(html)
+    const items: Array<{ name: string; price?: number | null }> = []
+
+    // Try structured menu blocks
+    $('.menu-item, [data-testid="menu-item"]').each((_, el) => {
+      const name =
+        cleanItemName(
+          $(el).find('.menu-item-name, [data-testid="menu-item-name"], h4, h3').first().text(),
+        ) || ''
+      const priceText =
+        $(el)
+          .find(
+            '.menu-item-price-amount, [data-testid="menu-item-price"], .price, .menu-item-price',
+          )
+          .first()
+          .text() || ''
+      const price = parsePricesFromText(priceText)[0] ?? null
+      if (name) items.push({ name, price })
+    })
+
+    // Fallback: scan priced list rows
+    if (items.length < 3) {
+      $('[class*="menu"], ul li, .list__09f24__ynIEd').each((_, el) => {
+        const t = $(el).text().trim()
+        if (!/\$?\d[\d.,]*/.test(t)) return
+        const price = parsePricesFromText(t)[0] ?? null
+        const name = cleanItemName(t.replace(/\$?\d[\d.,]*/g, '').trim())
+        if (name) items.push({ name, price })
+      })
+    }
+
+    const prices = items.map((i) => i.price ?? NaN).filter((n) => Number.isFinite(n)) as number[]
+    const avg = computeAvg(prices)
+
+    if (items.length >= 2) {
+      return { avg_price: avg, top_items: items.slice(0, 12), source: 'generic' }
+    }
+    // fall through to generic if Yelp CSS changed
   }
 
-  // fallback
+  if (/square\.site$|\.square\.site$/i.test(host)) {
+    const sq = await scrapeSquareLocal(url, html)
+    if (sq && (sq.top_items?.length ?? 0) >= 2) return sq
+  }
+  if (/toasttab\.com$/i.test(host) || host.includes('.toasttab.')) {
+    const tt = await scrapeToastLocal(url, html)
+    if (tt && (tt.top_items?.length ?? 0) >= 2) return tt
+  }
+
   const gen = await scrapeGeneric(html)
-  return gen ?? { avg_price: null, top_items: null, source: 'generic' }
+  if (gen && (gen.top_items?.length ?? 0) >= 2) return gen
+
+  return { avg_price: null, top_items: null, source: 'generic' }
+}
+
+// Backward-compat alias (some code may import { scrapeMenu }):
+export async function scrapeMenu(url: string): Promise<ScrapedMenu> {
+  return scrapeMenuFromUrl(url)
 }

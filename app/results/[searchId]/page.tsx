@@ -9,7 +9,6 @@ import { encodeCursor, decodeCursor } from '@/lib/cursor'
 import Pagination from '@/components/Pagination'
 import { redirect } from 'next/navigation'
 import BackToHistory from '@/components/BackToHistory'
-import FetchMenusButton from '@/components/FetchMenusButton'
 import NicheMenuCard from '@/components/NicheMenuCard'
 import AnalyticsStrip from '@/components/AnalyticsStrip'
 
@@ -202,7 +201,6 @@ export default async function ResultsPage({ params, searchParams }: PageProps) {
       </div>
       <div className="flex gap-2">
         <GeneratePlaceholders searchId={search.id} />
-        <FetchMenusButton searchId={search.id} />
       </div>
       <ResultsView
         items={items as any}

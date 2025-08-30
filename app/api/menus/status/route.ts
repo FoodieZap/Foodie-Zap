@@ -1,33 +1,43 @@
-export const dynamic = 'force-dynamic'
+// app/api/menus/status/route.ts
+export const runtime = 'nodejs'
 
 import { NextResponse } from 'next/server'
-import { createSupabaseRoute } from '@/utils/supabase/route'
+import { z } from 'zod'
+import { createSupabaseAdmin } from '@/utils/supabase/admin'
+
+const Query = z.object({
+  competitorId: z.string().uuid(),
+})
 
 export async function GET(req: Request) {
-  const supabase = await createSupabaseRoute()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const url = new URL(req.url)
+  const parsed = Query.safeParse(Object.fromEntries(url.searchParams))
+  if (!parsed.success) {
+    return NextResponse.json({ ok: false, error: 'Invalid query' }, { status: 400 })
+  }
 
-  const u = new URL(req.url)
-  const competitorId = (u.searchParams.get('competitorId') || '').trim()
-  if (!competitorId)
-    return NextResponse.json({ error: 'competitorId is required' }, { status: 400 })
+  const { competitorId } = parsed.data
+  const sb = createSupabaseAdmin()
 
-  const { data: menu } = await supabase
-    .from('menus')
-    .select('avg_price, top_items, fetched_at, source')
-    .eq('competitor_id', competitorId)
-    .maybeSingle()
+  try {
+    const { data, error } = await sb
+      .from('menus')
+      .select('avg_price, top_items, source_url, updated_at')
+      .eq('competitor_id', competitorId)
+      .maybeSingle()
 
-  const { data: job } = await supabase
-    .from('menu_jobs')
-    .select('status, error, updated_at')
-    .eq('competitor_id', competitorId)
-    .order('updated_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+    if (error) throw error
 
-  return NextResponse.json({ menu: menu ?? null, job: job ?? null })
+    return NextResponse.json({
+      ok: true,
+      ready: !!data,
+      avg_price: data?.avg_price ?? null,
+      top_items: data?.top_items ?? null,
+      source_url: data?.source_url ?? null,
+      updated_at: data?.updated_at ?? null,
+    })
+  } catch (e: any) {
+    console.error('status error:', e)
+    return NextResponse.json({ ok: false, error: e?.message || 'Server error' }, { status: 500 })
+  }
 }

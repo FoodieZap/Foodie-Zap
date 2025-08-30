@@ -1,62 +1,88 @@
 // lib/menuDiscovery.ts
-import * as cheerio from 'cheerio'
-import type { Provider } from './menuTargets'
+import { load as loadHTML } from 'cheerio'
+import { fetchHtml } from './http'
 
-export type Discovered = { url: string; provider: Provider }
-
-const PROVIDER_PATTERNS: Array<[Provider, RegExp]> = [
-  ['yelp', /https?:\/\/(www\.)?yelp\.com\/(?:biz|menu)\/[^\s"']+/i],
-  ['doordash', /https?:\/\/(www\.)?doordash\.com\/[^\s"']+/i],
-  ['ubereats', /https?:\/\/(www\.)?ubereats\.com\/[^\s"']+/i],
-  ['grubhub', /https?:\/\/(www\.)?grubhub\.com\/[^\s"']+/i],
-  ['toast', /https?:\/\/(www\.)?toasttab\.com\/[^\s"']+/i],
-  ['square', /https?:\/\/(www\.)?square\.site\/[^\s"']+/i],
-  ['clover', /https?:\/\/(www\.)?clover\.com\/[^\s"']+/i],
-  ['menu', /\/menu(\/|$|\?)/i],
+const CANDIDATE_KEYWORDS = [
+  'menu',
+  'our-menu',
+  'food',
+  'drinks',
+  'beverages',
+  'order',
+  'order-online',
+  'order-now',
+  'eat',
+  'dine',
+  'breakfast',
+  'lunch',
+  'dinner',
 ]
 
-const UA =
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36'
+const BAD_EXT = /\.(jpg|jpeg|png|gif|svg|webp|css|js|ico|woff2?|ttf|eot)(\?.*)?$/i
 
-export async function discoverMenuLinks(siteUrl: string, timeoutMs = 8000): Promise<Discovered[]> {
-  const controller = new AbortController()
-  const id = setTimeout(() => controller.abort(), timeoutMs)
+function isCandidateAnchorText(t: string) {
+  const s = t.toLowerCase()
+  if (s.length < 3) return false
+  return CANDIDATE_KEYWORDS.some((k) => s.includes(k))
+}
+
+function scoreHref(href: string) {
+  const h = href.toLowerCase()
+  if (BAD_EXT.test(h)) return -10
+  let score = 0
+  for (const k of CANDIDATE_KEYWORDS) if (h.includes(k)) score += 2
+  if (h.includes('/menu')) score += 4
+  if (h.includes('/order')) score += 3
+  if (h.endsWith('.pdf')) score += 5
+  return score
+}
+
+export async function discoverMenuUrl(seedUrl: string): Promise<string | null> {
   try {
-    const res = await fetch(siteUrl, {
-      signal: controller.signal,
-      headers: { 'User-Agent': UA, Accept: 'text/html,*/*' },
-    })
-    const html = await res.text()
-    const $ = cheerio.load(html)
+    const base = new URL(seedUrl)
+    const { html } = await fetchHtml(seedUrl)
+    const $ = loadHTML(html)
 
-    const candidates = new Set<string>()
-    $('a[href]').each((_, a) => {
-      const href = String($(a).attr('href') || '').trim()
-      if (!href) return
-      const abs = new URL(href, siteUrl).toString()
-      candidates.add(abs)
-    })
-    $('script[type="application/ld+json"]').each((_, s) => {
+    // JSON-LD: look for Restaurant w/ hasMenu/menu
+    let best: string | null = null
+    let bestScore = -1
+
+    $('script[type="application/ld+json"]').each((_, el) => {
       try {
-        const data = JSON.parse($(s).contents().text())
-        const urls = JSON.stringify(data).match(/https?:\/\/[^\s"']+/g) || []
-        urls.forEach((u) => candidates.add(u))
+        const obj = JSON.parse($(el).text() || '{}')
+        const arr = Array.isArray(obj) ? obj : [obj]
+        for (const node of arr) {
+          const maybe = node?.hasMenu || node?.menu
+          const candidates = Array.isArray(maybe) ? maybe : maybe ? [maybe] : []
+          for (const m of candidates) {
+            const href = typeof m === 'string' ? m : m?.url
+            if (!href) continue
+            const abs = new URL(href, base).toString()
+            const sc = scoreHref(abs) + 6 // JSON-LD bonus
+            if (sc > bestScore) {
+              bestScore = sc
+              best = abs
+            }
+          }
+        }
       } catch {}
     })
 
-    const out: Discovered[] = []
-    for (const href of candidates) {
-      for (const [provider, re] of PROVIDER_PATTERNS) {
-        if (re.test(href)) {
-          out.push({ url: href, provider })
-          break
-        }
+    // Anchors with menu-like text/href
+    $('a[href]').each((_, a) => {
+      const href = $(a).attr('href')!
+      const text = $(a).text() || ''
+      const abs = new URL(href, base).toString()
+      let sc = scoreHref(abs)
+      if (isCandidateAnchorText(text)) sc += 3
+      if (sc > bestScore) {
+        bestScore = sc
+        best = abs
       }
-    }
-    return out.length ? out : [{ url: siteUrl, provider: 'site' }]
+    })
+
+    return best
   } catch {
-    return [{ url: siteUrl, provider: 'site' }]
-  } finally {
-    clearTimeout(id)
+    return null
   }
 }

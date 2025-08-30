@@ -1,69 +1,176 @@
-// components/MenuSection.tsx
-import { createSupabaseRSC } from '@/utils/supabase/server'
-import FetchMenuForCompetitorButton from '@/components/FetchMenuForCompetitorButton'
+'use client'
 
-export default async function MenuSection({ competitorId }: { competitorId: string }) {
-  const supabase = await createSupabaseRSC()
+import { useEffect, useMemo, useState } from 'react'
 
-  const { data: menu } = await supabase
-    .from('menus')
-    .select('avg_price, top_items, source, fetched_at')
-    .eq('competitor_id', competitorId)
-    .maybeSingle()
+type MenuItem = { name: string; price?: number | null }
+type StatusResp = {
+  ok: boolean
+  ready: boolean
+  avg_price: number | null
+  top_items: MenuItem[] | null
+  source_url: string | null
+  updated_at: string | null
+}
+type ScrapeResp = {
+  ok: boolean
+  competitorId: string | null
+  targetUrl: string
+  avg_price: number | null
+  top_items: MenuItem[] | null
+  source: string
+  item_count: number
+}
+
+export default function MenuSection({ competitorId }: { competitorId: string }) {
+  const [avg, setAvg] = useState<number | null>(null)
+  const [items, setItems] = useState<MenuItem[] | null>(null)
+  const [sourceUrl, setSourceUrl] = useState<string | null>(null)
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [polling, setPolling] = useState(false)
+  const [lastItemCount, setLastItemCount] = useState<number | null>(null)
+
+  async function readStatus() {
+    const r = await fetch(`/api/menus/status?competitorId=${competitorId}`, { cache: 'no-store' })
+    const j: StatusResp = await r.json()
+
+    // ⬇️ Only update UI if the DB actually has something (ready),
+    // or the payload contains data (defensive in case of partial writes).
+    const hasData =
+      j.ready || j.avg_price != null || (Array.isArray(j.top_items) && j.top_items.length > 0)
+
+    if (j.ok && hasData) {
+      setAvg(j.avg_price ?? null)
+      setItems(j.top_items ?? null)
+      setSourceUrl(j.source_url ?? null)
+      setUpdatedAt(j.updated_at ?? null)
+    }
+
+    return Boolean(j.ready)
+  }
+
+  async function runScrape() {
+    try {
+      setLoading(true)
+      setError(null)
+      setLastItemCount(null)
+
+      // Kick off scrape for THIS competitor
+      const res = await fetch('/api/menus/scrape-one', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ competitorId }),
+      })
+      if (!res.ok) {
+        const t = await res.text().catch(() => '')
+        throw new Error(`Scrape failed (${res.status}) ${t}`)
+      }
+
+      // IMMEDIATE RENDER from POST result
+      const s: ScrapeResp = await res.json()
+      setAvg(s.avg_price ?? null)
+      setItems(s.top_items ?? null)
+      setSourceUrl(s.targetUrl ?? null)
+      setLastItemCount(typeof s.item_count === 'number' ? s.item_count : null)
+
+      // Then poll DB until we confirm it’s saved (or we time out)
+      setPolling(true)
+      let ready = false
+      for (let i = 0; i < 15; i++) {
+        await new Promise((r) => setTimeout(r, 1100))
+        ready = await readStatus()
+        if (ready) break
+      }
+    } catch (e: any) {
+      setError(e?.message || 'Failed to fetch menu')
+    } finally {
+      setPolling(false)
+      setLoading(false)
+    }
+  }
+
+  // Load any existing menu when the page opens
+  useEffect(() => {
+    readStatus().catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [competitorId])
+
+  const hasMenu = useMemo(() => (items?.length ?? 0) > 0 || avg != null, [items, avg])
 
   return (
-    <div className="rounded border bg-white">
-      <details className="p-4" open>
-        <summary className="cursor-pointer font-medium">Menu</summary>
+    <section className="rounded border bg-white p-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Menu</h2>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={runScrape}
+            disabled={loading || polling}
+            className="rounded bg-gray-900 text-white px-3 py-1.5 text-sm hover:bg-gray-800 disabled:opacity-50"
+          >
+            {loading || polling ? 'Fetching…' : 'Fetch menu'}
+          </button>
+          <button
+            onClick={() => readStatus()}
+            disabled={loading || polling}
+            className="rounded border px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50"
+            title="Refresh status"
+          >
+            Refresh
+          </button>
+        </div>
+      </div>
 
-        {!menu && (
-          <div className="mt-2 flex items-center justify-between">
-            <div className="text-sm text-gray-600">No menu fetched yet.</div>
-            <FetchMenuForCompetitorButton competitorId={competitorId} />
-          </div>
-        )}
+      {error && <p className="text-red-600 text-sm">{error}</p>}
 
-        {menu && (
-          <div className="mt-3 space-y-3">
-            <div className="text-sm text-gray-700">
-              {menu.avg_price != null ? (
-                <>
-                  Average ticket: <b>${Number(menu.avg_price).toFixed(2)}</b>
-                </>
-              ) : (
-                <>Average ticket: —</>
-              )}
-              {menu.source && <> · Source: {menu.source}</>}
-              {menu.fetched_at && (
-                <> · Fetched {new Date(menu.fetched_at as any).toLocaleString()}</>
-              )}
+      {!hasMenu && !error && (
+        <p className="text-sm text-gray-600">
+          No menu found yet. Click <em>Fetch menu</em> to try scraping this restaurant’s site.
+        </p>
+      )}
+
+      {/* tiny debug/status line to help you validate */}
+      {(lastItemCount != null || sourceUrl) && (
+        <p className="text-xs text-gray-500">
+          {lastItemCount != null ? <>Found {lastItemCount} items.</> : null}{' '}
+          {sourceUrl ? (
+            <>
+              Source:{' '}
+              <a className="underline" href={sourceUrl} target="_blank" rel="noreferrer">
+                {sourceUrl}
+              </a>
+            </>
+          ) : null}
+        </p>
+      )}
+
+      {hasMenu && (
+        <div className="space-y-3">
+          {avg != null && (
+            <p className="text-sm">
+              Avg ticket: <strong>${avg.toFixed(2)}</strong>
+              {updatedAt ? (
+                <span className="text-gray-500 ml-2">
+                  (updated {new Date(updatedAt).toLocaleString()})
+                </span>
+              ) : null}
+            </p>
+          )}
+
+          {items && items.length > 0 && (
+            <div className="divide-y rounded border">
+              {items.slice(0, 20).map((it, idx) => (
+                <div key={idx} className="flex items-baseline justify-between px-3 py-2">
+                  <div className="text-sm">{it.name}</div>
+                  {it.price != null && (
+                    <div className="text-sm tabular-nums">${Number(it.price).toFixed(2)}</div>
+                  )}
+                </div>
+              ))}
             </div>
-
-            {Array.isArray(menu.top_items) && menu.top_items.length > 0 ? (
-              <ul className="grid sm:grid-cols-2 gap-2">
-                {menu.top_items.map((t: any, i: number) => {
-                  const name = String(t?.name || '').trim()
-                  if (!name || name.length < 2 || name.length > 80) return null
-                  return (
-                    <li
-                      key={i}
-                      className="rounded border px-3 py-2 text-sm flex items-center justify-between"
-                    >
-                      <span className="truncate">{name}</span>
-                    </li>
-                  )
-                })}
-              </ul>
-            ) : (
-              <div className="text-sm text-gray-600">No top items available.</div>
-            )}
-
-            <div className="pt-2">
-              <FetchMenuForCompetitorButton competitorId={competitorId} />
-            </div>
-          </div>
-        )}
-      </details>
-    </div>
+          )}
+        </div>
+      )}
+    </section>
   )
 }
