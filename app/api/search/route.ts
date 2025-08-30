@@ -216,7 +216,7 @@ export async function POST(req: Request) {
           .eq('id', search.id)
 
         return NextResponse.json(
-          { id: search.id, status: 'error', error: insertErr.message },
+          { ok: false, searchId: search.id, error: insertErr.message },
           { status: 500 },
         )
       }
@@ -230,7 +230,7 @@ export async function POST(req: Request) {
       meta: { query, city, inserted: rankedCompetitors.length, radius_km: radiusKm },
     })
 
-    return NextResponse.json({ id: search.id, status: 'ok' })
+    return NextResponse.json({ ok: true, searchId: search.id })
   } catch (e: any) {
     await supabase
       .from('searches')

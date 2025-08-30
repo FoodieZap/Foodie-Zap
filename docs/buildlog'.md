@@ -244,3 +244,9 @@ Compress-Archive -Path "C:\Users\alexa\Foodie-Zap\*" -DestinationPath "C:\Users\
 - **Filters expansion** (hours open now, category, has menu/photos)
 
 _Last updated: add today’s date here_
+
+####
+
+Traffic times/happy hour/different business hours
+
+CLEAR CACHE "rm -rf .next"

@@ -1,41 +1,36 @@
+// app/api/search/[id]/route.ts
 import { NextResponse } from 'next/server'
 import { createSupabaseRoute } from '@/utils/supabase/route'
 
-import { type CookieOptions, createServerClient } from '@supabase/ssr'
+export async function GET(req: Request, ctx: any) {
+  const { id: searchId } = (ctx?.params ?? {}) as { id: string }
 
-export async function GET(_: Request, { params }: { params: { id: string } }) {
   const supabase = await createSupabaseRoute()
-
   const {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  // Search (ownership enforced by RLS)
+  // Search (RLS enforces ownership)
   const { data: search, error: sErr } = await supabase
     .from('searches')
     .select('*')
-    .eq('id', params.id)
+    .eq('id', searchId)
     .single()
 
   if (sErr) return NextResponse.json({ error: sErr.message }, { status: 404 })
 
   // Competitors
-  //   const { data: competitors } = await supabase
-  //     .from('competitors')
-  //     .select(
-  //       'id, source, place_id, name, address, phone, website, rating, review_count, price_level, cuisine',
-  //     )
-
   const { data: competitors } = await supabase
     .from('competitors')
     .select(
       'id, source, place_id, name, address, phone, website, rating, review_count, price_level, cuisine',
     )
-    .eq('search_id', params.id)
+    .eq('search_id', searchId)
+
   // Menus (by competitor ids)
   let menus: any[] = []
-  if (competitors && competitors.length) {
+  if (competitors?.length) {
     const ids = competitors.map((c) => c.id)
     const { data } = await supabase
       .from('menus')
@@ -48,7 +43,7 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
   const { data: insights } = await supabase
     .from('insights')
     .select('summary, actions')
-    .eq('search_id', params.id)
+    .eq('search_id', searchId)
     .maybeSingle()
 
   return NextResponse.json({

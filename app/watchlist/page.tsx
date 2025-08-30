@@ -84,7 +84,7 @@ export default async function WatchlistPage() {
                 <th className="px-3 py-2">Rating</th>
                 <th className="px-3 py-2">Reviews</th>
                 <th className="px-3 py-2">Price</th>
-                <th className="px-3 py-2">Note</th>
+
                 <th className="px-3 py-2">Actions</th>
               </tr>
             </thead>
@@ -102,9 +102,7 @@ export default async function WatchlistPage() {
                     <td className="px-3 py-2">{c?.rating ?? '—'}</td>
                     <td className="px-3 py-2">{c?.review_count ?? '—'}</td>
                     <td className="px-3 py-2">{c?.price_level ?? '—'}</td>
-                    <td className="px-3 py-2 align-top">
-                      <NotesList competitorId={w.competitor_id} />
-                    </td>
+
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-2">
                         <a

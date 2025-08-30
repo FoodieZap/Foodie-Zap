@@ -15,6 +15,8 @@ const PAGE_SIZE = 20
 
 export default async function HistoryPage({ searchParams }: PageProps) {
   const supabase = await createSupabaseRSC()
+
+  // ⬇️ Next 15: await the promisified searchParams
   const sp = await searchParams
 
   // Filters
@@ -30,46 +32,29 @@ export default async function HistoryPage({ searchParams }: PageProps) {
   let query = supabase
     .from('searches')
     .select('id, query, city, status, created_at')
-    // Sort: created_at then id (id ASC for stable tie-break)
     .order('created_at', { ascending: sort === 'oldest' })
     .order('id', { ascending: true })
     .limit(PAGE_SIZE + 1)
 
-  // Optional search filter: match query OR city
   if (q) {
-    // ilike both columns via OR
     query = query.or(`query.ilike.%${q}%,city.ilike.%${q}%`)
   }
 
-  // Keyset pagination WHEREs depend on sort direction
-  // For NEWEST (created_at DESC):
-  //   after  -> older:   created_at < ts OR (created_at = ts AND id > id)
-  //   before -> newer:   created_at > ts OR (created_at = ts AND id < id)
-  //
-  // For OLDEST (created_at ASC):
-  //   after  -> newer:   created_at > ts OR (created_at = ts AND id > id)
-  //   before -> older:   created_at < ts OR (created_at = ts AND id < id)
-
+  // Keyset pagination helpers
   const cmp = (dir: 'lt' | 'gt', ts: string, op: 'gt' | 'lt', id: string) =>
     `created_at.${dir}.${ts},and(created_at.eq.${ts},id.${op}.${id})`
 
   if (after && !before) {
-    if (sort === 'newest') {
-      // go older
-      query = query.or(cmp('lt', after.ts, 'gt', after.id))
-    } else {
-      // oldest: go newer
-      query = query.or(cmp('gt', after.ts, 'gt', after.id))
-    }
+    query =
+      sort === 'newest'
+        ? query.or(cmp('lt', after.ts, 'gt', after.id)) // older
+        : query.or(cmp('gt', after.ts, 'gt', after.id)) // newer
   }
   if (before && !after) {
-    if (sort === 'newest') {
-      // go newer
-      query = query.or(cmp('gt', before.ts, 'lt', before.id))
-    } else {
-      // oldest: go older
-      query = query.or(cmp('lt', before.ts, 'lt', before.id))
-    }
+    query =
+      sort === 'newest'
+        ? query.or(cmp('gt', before.ts, 'lt', before.id)) // newer
+        : query.or(cmp('lt', before.ts, 'lt', before.id)) // older
   }
 
   const { data: rowsRaw, error } = await query
@@ -88,7 +73,6 @@ export default async function HistoryPage({ searchParams }: PageProps) {
 
   if (rows.length > PAGE_SIZE) {
     if (before && !after) {
-      // requested toward newer/older depending on sort; keep tail
       hasPrev = true
       rows = rows.slice(-PAGE_SIZE)
     } else {
@@ -97,7 +81,7 @@ export default async function HistoryPage({ searchParams }: PageProps) {
     }
   }
 
-  // If overshot to emptiness, bounce back one step (keeps q/sort in URL)
+  // If overshot to emptiness, bounce back one step (preserve filters)
   if ((rows?.length ?? 0) === 0) {
     const suffix =
       q || sort === 'oldest'
@@ -106,12 +90,8 @@ export default async function HistoryPage({ searchParams }: PageProps) {
             ...(sort === 'oldest' ? { sort } : {}),
           }).toString()}`
         : ''
-    if (after) {
-      redirect(`?before=${encodeHistoryCursor(after)}${suffix}`)
-    }
-    if (before) {
-      redirect(`?after=${encodeHistoryCursor(before)}${suffix}`)
-    }
+    if (after) redirect(`?before=${encodeHistoryCursor(after)}${suffix}`)
+    if (before) redirect(`?after=${encodeHistoryCursor(before)}${suffix}`)
     redirect(suffix ? `?${suffix.slice(1)}` : '?')
   }
 
@@ -213,7 +193,6 @@ export default async function HistoryPage({ searchParams }: PageProps) {
                 if (q) backParams.set('q', q)
                 if (sort === 'oldest') backParams.set('sort', 'oldest')
                 const backQS = backParams.toString() ? `?${backParams.toString()}` : ''
-
                 return (
                   <a
                     href={`/results/${r.id}${
@@ -225,7 +204,6 @@ export default async function HistoryPage({ searchParams }: PageProps) {
                   </a>
                 )
               })()}
-              {/* Optional: Re-run action later */}
             </div>
           </div>
         ))}

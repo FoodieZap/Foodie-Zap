@@ -1,6 +1,5 @@
 export const dynamic = 'force-dynamic'
 
-//import Link from 'next/link'
 import ResultsView from '@/components/ResultsView'
 import MenuCard from '@/components/MenuCard'
 import ActionsCard from '@/components/ActionsCard'
@@ -10,8 +9,11 @@ import { encodeCursor, decodeCursor } from '@/lib/cursor'
 import Pagination from '@/components/Pagination'
 import { redirect } from 'next/navigation'
 import BackToHistory from '@/components/BackToHistory'
+import FetchMenusButton from '@/components/FetchMenusButton'
+import NicheMenuCard from '@/components/NicheMenuCard'
+import AnalyticsStrip from '@/components/AnalyticsStrip'
 
-interface PageProps {
+type PageProps = {
   params: Promise<{ searchId: string }>
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }
@@ -21,7 +23,7 @@ const PAGE_SIZE = 20
 export default async function ResultsPage({ params, searchParams }: PageProps) {
   const supabase = await createSupabaseRSC()
 
-  // Next 15: await the dynamic params/searchParams
+  // ⬇️ Next 15 requires awaiting the promisified props
   const { searchId } = await params
   const sp = await searchParams
   const view = sp.view === 'map' ? 'map' : 'list'
@@ -30,7 +32,7 @@ export default async function ResultsPage({ params, searchParams }: PageProps) {
   const after = decodeCursor(afterRaw)
   const before = decodeCursor(beforeRaw)
 
-  // 1) Validate search belongs to user (RLS will enforce too)
+  // 1) Validate search belongs to user
   const { data: search, error: searchErr } = await supabase
     .from('searches')
     .select('id, query, city, latitude, longitude, status, created_at')
@@ -61,25 +63,18 @@ export default async function ResultsPage({ params, searchParams }: PageProps) {
     .order('id', { ascending: true })
     .limit(PAGE_SIZE + 1)
 
-  // AFTER (next page)
   if (after) {
-    // (review_count < rc) OR (review_count = rc AND id > id)
-    // Supabase .or accepts comma-separated disjuncts
     query = query.or(
       `review_count.lt.${after.rc},and(review_count.eq.${after.rc},id.gt.${after.id})`,
     )
   }
-
-  // BEFORE (prev page)
   if (before && !after) {
-    // (review_count > rc) OR (review_count = rc AND id < id)
     query = query.or(
       `review_count.gt.${before.rc},and(review_count.eq.${before.rc},id.lt.${before.id})`,
     )
   }
 
   const { data: compsRaw, error: compErr } = await query
-
   if (compErr) {
     return (
       <main className="max-w-3xl mx-auto p-6">
@@ -89,49 +84,38 @@ export default async function ResultsPage({ params, searchParams }: PageProps) {
     )
   }
 
-  let hasPrev = Boolean(before) // if you came with a "before", you definitely have newer pages
-  let hasNext = Boolean(after) // if you came with an "after", you definitely have older pages
+  let hasPrev = Boolean(before)
+  let hasNext = Boolean(after)
   let pageItems = compsRaw ?? []
 
-  // We fetched PAGE_SIZE+1 to detect more
   if (pageItems.length > PAGE_SIZE) {
     if (before && !after) {
-      // We asked for items "before" the cursor (earlier in the sorted list).
-      // Keep the LAST PAGE_SIZE items; there exists even earlier -> hasPrev = true
       hasPrev = true
       pageItems = pageItems.slice(-PAGE_SIZE)
     } else {
-      // Initial load or "after": keep the FIRST PAGE_SIZE items; more exist -> hasNext = true
       hasNext = true
       pageItems = pageItems.slice(0, PAGE_SIZE)
     }
   }
 
-  // 3) Derive cursors for Prev/Next links from first/last item of this page
   const first = pageItems[0]
   const last = pageItems[pageItems.length - 1]
-
-  const mkHref = (params: Record<string, string | undefined>) => {
+  const mkHref = (p: Record<string, string | undefined>) => {
     const usp = new URLSearchParams()
-    // only include cursor we set (after or before)
-    if (params.after) usp.set('after', params.after)
-    if (params.before) usp.set('before', params.before)
-    const qs = usp.toString()
-    return qs ? `?${qs}` : ''
+    if (p.after) usp.set('after', p.after)
+    if (p.before) usp.set('before', p.before)
+    if (view === 'map') usp.set('view', 'map')
+    return usp.toString() ? `?${usp.toString()}` : ''
   }
-
   const prevHref =
     first && hasPrev
       ? mkHref({ before: encodeCursor({ rc: first.review_count ?? 0, id: first.id }) })
       : null
-
   const nextHref =
     last && hasNext
       ? mkHref({ after: encodeCursor({ rc: last.review_count ?? 0, id: last.id }) })
       : null
 
-  // 4) Build starredIds ONLY for items on this page
-  // 4) Build starredIds ONLY for items on this page (persist across *any* search)
   const compIds = (pageItems ?? [])
     .map((c: any) => c.id)
     .filter((x: any): x is string => typeof x === 'string')
@@ -141,54 +125,43 @@ export default async function ResultsPage({ params, searchParams }: PageProps) {
     const { data: starredRows } = await supabase
       .from('watchlist')
       .select('competitor_id')
-      .in('competitor_id', compIds) // RLS ensures current user
-    // NOTE: do NOT filter by search_id here — we want stars to show across searches
+      .in('competitor_id', compIds)
     starredIds = (starredRows ?? []).map((r: any) => r.competitor_id as string)
   }
 
-  // If we overshot and got no items, auto-fallback to previous cursor
   if ((pageItems?.length ?? 0) === 0) {
-    if (after) {
-      // Tried to go forward but nothing there → go back one step
+    if (after)
       redirect(
         `?before=${encodeCursor({ rc: after.rc, id: after.id })}${
           view === 'map' ? '&view=map' : ''
         }`,
       )
-    }
-    if (before) {
-      // Tried to go backward but nothing there → go forward one step
+    if (before)
       redirect(
         `?after=${encodeCursor({ rc: before.rc, id: before.id })}${
           view === 'map' ? '&view=map' : ''
         }`,
       )
-    }
-    // No cursors at all (strange edge) — fall back to base view
     redirect(view === 'map' ? '?view=map' : '?')
   }
 
-  // 5) Load menus for items on this page
+  // 5) Menus for items on this page
   const { data: menus } = await supabase
     .from('menus')
     .select('competitor_id, avg_price, top_items')
     .in('competitor_id', compIds)
 
-  // 6) Load insights (one row per search)
+  // 6) Insights
   const { data: insightRow } = await supabase
     .from('insights')
     .select('summary, actions')
     .eq('search_id', search.id)
     .maybeSingle()
 
-  // 7) Surface score if stored in data._score (optional)
+  // 7) Attach score if present in data._score
   const items = (pageItems ?? []).map((c: any) => {
-    let score: number | null = null
-    try {
-      const s = (c as any)?.data?._score
-      if (typeof s === 'number') score = s
-    } catch {}
-    return { ...c, _score: score }
+    const s = (c as any)?.data?._score
+    return { ...c, _score: typeof s === 'number' ? s : null }
   })
 
   return (
@@ -198,17 +171,13 @@ export default async function ResultsPage({ params, searchParams }: PageProps) {
           <h1 className="text-xl font-semibold">
             Results for: {search.query} — {search.city}
           </h1>
-
           <div className="text-sm text-gray-600">
             {new Date(search.created_at as any).toLocaleString()}
           </div>
-
           <div className="flex items-center gap-3">
-            {/* Back to history (only appears if the hash is present) */}
-            <br></br>
+            <br />
             <BackToHistory />
           </div>
-          {/* Keep your existing back to dashboard link if you like */}
           <div className="flex items-center gap-3">
             <a href="/dashboard" className="text-sm underline text-blue-600">
               ← Back to dashboard
@@ -231,18 +200,18 @@ export default async function ResultsPage({ params, searchParams }: PageProps) {
           </a>
         </div>
       </div>
-
       <div className="flex gap-2">
         <GeneratePlaceholders searchId={search.id} />
-        {/* If you add Trends or true Insights later, add buttons here */}
+        <FetchMenusButton searchId={search.id} />
       </div>
-
       <ResultsView
         items={items as any}
         centerLat={search.latitude}
         centerLng={search.longitude}
+        starredIds={starredIds}
         initialMode={view}
         initialWatchlistIds={starredIds}
+        menus={menus ?? []}
       />
 
       {view !== 'map' && (
@@ -254,6 +223,8 @@ export default async function ResultsPage({ params, searchParams }: PageProps) {
         />
       )}
 
+      <AnalyticsStrip searchId={search.id} />
+      <NicheMenuCard menus={menus ?? []} />
       <MenuCard menus={menus ?? []} />
 
       <div className="mt-4">

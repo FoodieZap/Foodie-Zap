@@ -20,6 +20,7 @@ type ResultsTableProps = {
   centerLat?: number | null
   centerLng?: number | null
   initialWatchlistIds?: string[]
+  menusMap?: Record<string, { avg_price: number | null; top_items: any[] | null }>
 }
 
 function distKm(
@@ -44,6 +45,7 @@ export default function ResultsTable({
   centerLat,
   centerLng,
   initialWatchlistIds = [],
+  menusMap = {}, // 👈 default
 }: ResultsTableProps) {
   // UI state
   const [minRating, setMinRating] = useState<number | ''>('')
@@ -249,6 +251,22 @@ export default function ResultsTable({
                 {c.price_level && <span className="text-gray-600">· {c.price_level}</span>}
                 {c.address && <span className="text-gray-600">· {c.address}</span>}
               </div>
+              {/* menu teaser (one-line preview) */}
+              {(() => {
+                const id = c.id ?? undefined
+                const m = id ? menusMap?.[id] : undefined
+                if (!m) return null
+                const first =
+                  Array.isArray(m.top_items) && m.top_items.length
+                    ? m.top_items[0]?.name ?? null
+                    : null
+                return (
+                  <div className="text-xs text-gray-600 mt-0.5">
+                    {first ? <>Top item: {first}</> : <>Menu available</>}
+                    {m.avg_price != null && <> · Avg ticket ${Number(m.avg_price).toFixed(2)}</>}
+                  </div>
+                )
+              })()}
             </div>
           )
         })}

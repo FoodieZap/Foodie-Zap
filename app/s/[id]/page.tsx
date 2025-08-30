@@ -1,8 +1,17 @@
 import { redirect } from 'next/navigation'
 import { createSupabaseRSC } from '@/utils/supabase/server'
 
-export default async function SearchDetails({ params }: { params: { id: string } }) {
+type PageProps = {
+  params: Promise<{ id: string }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}
+
+export default async function SearchDetails({ params, searchParams }: PageProps) {
   const supabase = await createSupabaseRSC()
+
+  // ⬇️ Next 15: await the promisified props
+  const { id } = await params
+  const sp = await searchParams // (you’re not using it yet, but keeping for consistency)
 
   const {
     data: { user },
@@ -13,9 +22,10 @@ export default async function SearchDetails({ params }: { params: { id: string }
   const { data: search, error: sErr } = await supabase
     .from('searches')
     .select('*')
-    .eq('id', params.id)
+    .eq('id', id)
     .single()
-  if (sErr) {
+
+  if (sErr || !search) {
     return <main className="p-6">Search not found.</main>
   }
 
@@ -25,11 +35,11 @@ export default async function SearchDetails({ params }: { params: { id: string }
     .select(
       'id, source, place_id, name, address, phone, website, rating, review_count, price_level, cuisine',
     )
-    .eq('search_id', params.id)
+    .eq('search_id', id)
 
   // 3) Menus for those competitors
   let menus: any[] = []
-  if (competitors && competitors.length) {
+  if (competitors?.length) {
     const ids = competitors.map((c) => c.id)
     const { data } = await supabase
       .from('menus')
@@ -42,7 +52,7 @@ export default async function SearchDetails({ params }: { params: { id: string }
   const { data: insights } = await supabase
     .from('insights')
     .select('summary, actions')
-    .eq('search_id', params.id)
+    .eq('search_id', id)
     .maybeSingle()
 
   return (

@@ -3,54 +3,57 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-type Props = {
-  defaultCity?: string
-}
+type Props = { defaultCity?: string }
 
 export default function SearchForm({ defaultCity = '' }: Props) {
   const router = useRouter()
   const [query, setQuery] = useState('')
   const [city, setCity] = useState(defaultCity)
-  const [minRating, setMinRating] = useState<number | ''>('' as any)
-  const [maxDistanceMeters, setMaxDistanceMeters] = useState<number | ''>('' as any)
+  const [minRating, setMinRating] = useState<number | ''>('')
+  const [maxDistanceMeters, setMaxDistanceMeters] = useState<number | ''>('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault()
+  async function onSubmit(ev: React.FormEvent<HTMLFormElement>) {
+    ev.preventDefault()
+    if (loading) return
     setError(null)
-
-    if (!query.trim() || !city.trim()) {
-      setError('Please enter both a service/keyword and a city.')
-      return
-    }
-
     setLoading(true)
+
     try {
-      const payload: any = { query: query.trim(), city: city.trim() }
-      if (minRating !== '' && !Number.isNaN(minRating)) payload.minRating = Number(minRating)
-      if (maxDistanceMeters !== '' && !Number.isNaN(maxDistanceMeters))
-        payload.maxDistanceMeters = Number(maxDistanceMeters)
+      const payload: {
+        query: string
+        city: string
+        minRating?: number
+        maxDistanceMeters?: number
+      } = { query: query.trim(), city: city.trim() }
+
+      if (minRating !== '') payload.minRating = Math.max(0, Math.min(5, Number(minRating)))
+      if (maxDistanceMeters !== '')
+        payload.maxDistanceMeters = Math.max(0, Number(maxDistanceMeters))
 
       const res = await fetch('/api/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
-      const data = await res.json()
+      const body = await res.json().catch(() => ({} as any))
 
       if (!res.ok) {
-        throw new Error(data?.error || 'Search failed')
+        setError(typeof body?.error === 'string' ? body.error : 'Search failed.')
+        return
       }
 
-      // redirect to results page
-      if (data?.id) {
-        router.push(`/results/${data.id}`)
-      } else {
+      const searchId: string | undefined = body?.searchId ?? body?.id
+      if (!searchId) {
         setError('Search created but no id returned.')
+        return
       }
-    } catch (err: any) {
-      setError(err.message || 'Something went wrong')
+      router.push(`/results/${encodeURIComponent(searchId)}`)
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : typeof err === 'string' ? err : 'Unexpected error.'
+      setError(msg)
     } finally {
       setLoading(false)
     }
@@ -64,20 +67,24 @@ export default function SearchForm({ defaultCity = '' }: Props) {
         <label className="block">
           <div className="text-sm text-gray-700 mb-1">Service / Keyword</div>
           <input
+            name="query"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder='e.g. "coffee", "pizza", "sushi"'
             className="w-full rounded border px-3 py-2"
+            required
           />
         </label>
 
         <label className="block">
           <div className="text-sm text-gray-700 mb-1">City</div>
           <input
+            name="city"
             value={city}
             onChange={(e) => setCity(e.target.value)}
             placeholder='e.g. "Austin, TX"'
             className="w-full rounded border px-3 py-2"
+            required
           />
         </label>
       </div>
@@ -90,7 +97,8 @@ export default function SearchForm({ defaultCity = '' }: Props) {
             step="0.1"
             min={0}
             max={5}
-            value={minRating as any}
+            name="minRating"
+            value={minRating === '' ? '' : String(minRating)}
             onChange={(e) => setMinRating(e.target.value === '' ? '' : Number(e.target.value))}
             className="w-full rounded border px-3 py-2"
           />
@@ -102,7 +110,8 @@ export default function SearchForm({ defaultCity = '' }: Props) {
             type="number"
             step="50"
             min={1}
-            value={maxDistanceMeters as any}
+            name="maxDistanceMeters"
+            value={maxDistanceMeters === '' ? '' : String(maxDistanceMeters)}
             onChange={(e) =>
               setMaxDistanceMeters(e.target.value === '' ? '' : Number(e.target.value))
             }

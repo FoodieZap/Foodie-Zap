@@ -1,3 +1,4 @@
+// app/api/competitors/route.ts
 import { NextResponse } from 'next/server'
 import { createSupabaseRoute } from '@/utils/supabase/route'
 

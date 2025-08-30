@@ -4,7 +4,8 @@ import Link from 'next/link'
 
 type Params = { searchId: string }
 
-export default async function RlsSearchDetail({ params }: { params: Params }) {
+export default async function RlsSearchDetail({ params }: { params: Promise<Params> }) {
+  const { searchId } = await params
   const supabase = await createSupabaseRSC()
 
   // Optional: ensure we are logged in (nice message)
@@ -33,12 +34,12 @@ export default async function RlsSearchDetail({ params }: { params: Params }) {
   const { data: search, error: searchErr } = await supabase
     .from('searches')
     .select('id, query, city, created_at')
-    .eq('id', params.searchId)
+    .eq('id', searchId)
     .single()
 
   if (searchErr || !search) {
     return (
-      <main className="max-w-3xl mx-auto p-6">
+      <main className="max-w-3xl mx_auto p-6">
         <p className="mb-2 font-medium">Search not found or not accessible.</p>
         <p className="text-sm text-gray-600 mb-4">
           If this search belongs to another user, RLS will block access.

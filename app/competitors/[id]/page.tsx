@@ -1,12 +1,14 @@
+// app/competitors/[id]page.tsx
 import { createSupabaseRSC } from '@/utils/supabase/server'
 import Link from 'next/link'
 import { Star } from 'lucide-react'
 import WatchlistToggle from '@/components/WatchlistToggle'
 import NotesCard from '@/components/NotesCard'
+import MenuSection from '@/components/MenuSection'
 
-type Params = { id: string }
-
-export default async function CompetitorDetail({ params }: { params: Params }) {
+type ParamsPromise = Promise<{ id: string }>
+export default async function CompetitorDetail({ params }: { params: ParamsPromise }) {
+  const { id } = await params
   const supabase = await createSupabaseRSC()
 
   // 1) Competitor
@@ -15,7 +17,7 @@ export default async function CompetitorDetail({ params }: { params: Params }) {
     .select(
       'id, search_id, name, source, rating, review_count, price_level, address, phone, website, lat, lng, data',
     )
-    .eq('id', params.id)
+    .eq('id', id)
     .single()
 
   if (error || !competitor) {
@@ -137,7 +139,7 @@ export default async function CompetitorDetail({ params }: { params: Params }) {
           No map available (missing coordinates).
         </div>
       )}
-
+      <MenuSection competitorId={competitor.id} />
       {/* Notes dropdown (preloaded) */}
       <NotesCard competitorId={competitor.id} initialNotes={notes ?? []} />
     </main>

@@ -9,74 +9,65 @@ export default function GeneratePlaceholders({ searchId }: { searchId: string })
   const [busyInsights, startInsights] = useTransition()
   const [msg, setMsg] = useState<string | null>(null)
 
-  // Reusable POST helper with JSON/error handling
   async function post(url: string) {
-    setMsg(null)
     const res = await fetch(url, { method: 'POST' })
-    if (!res.ok) {
-      // Try to parse JSON error, fallback to text/status
-      const text = await res.text().catch(() => '')
-      let err = text
-      try {
-        const j = JSON.parse(text || '{}')
-        err = j?.error || text
-      } catch {}
-      throw new Error(err || `Request failed (${res.status})`)
-    }
+    // Try to parse JSON (best-effort)
+    let body: any = null
     try {
-      return await res.json()
-    } catch {
-      return {}
+      body = await res.json()
+    } catch {}
+    if (!res.ok) {
+      const reason = body?.error || `Request failed (${res.status})`
+      throw new Error(reason)
     }
+    return body
   }
 
   function generateMenus() {
+    setMsg(null)
     startMenus(async () => {
       try {
-        await post(`/api/menus/placeholder?searchId=${searchId}`)
-        setMsg('Menus generated.')
-        router.refresh() // re-fetch server data on this page
+        await post(`/api/menus/placeholder?searchId=${encodeURIComponent(searchId)}`)
+        setMsg('✅ Menus generated.')
+        router.refresh()
       } catch (e: any) {
-        setMsg(e?.message || 'Failed to generate menus.')
-        console.error(e)
+        setMsg(`❌ Menus failed: ${e?.message || 'Unknown error'}`)
       }
     })
   }
 
   function generateInsights() {
+    setMsg(null)
     startInsights(async () => {
       try {
-        await post(`/api/insights?searchId=${searchId}`)
-        setMsg('Insights generated.')
-        router.refresh() // picks up insights row immediately
+        await post(`/api/insights?searchId=${encodeURIComponent(searchId)}`)
+        setMsg('✅ Insights generated.')
+        router.refresh()
       } catch (e: any) {
-        setMsg(e?.message || 'Failed to generate insights.')
-        console.error(e)
+        setMsg(`❌ Insights failed: ${e?.message || 'Unknown error'}`)
       }
     })
   }
-
-  const disabled = busyMenus || busyInsights
 
   return (
     <div className="flex items-center gap-2">
       <button
         onClick={generateMenus}
-        disabled={disabled}
+        disabled={busyMenus}
         className="rounded border px-3 py-1.5 text-sm hover:bg-gray-100 disabled:opacity-60"
       >
-        {busyMenus ? 'Generating…' : 'Generate Menus (placeholder)'}
+        {busyMenus ? 'Generating…' : 'Generate Menus'}
       </button>
 
       <button
         onClick={generateInsights}
-        disabled={disabled}
+        disabled={busyInsights}
         className="px-3 py-1.5 rounded border text-sm hover:bg-gray-100 disabled:opacity-60"
       >
         {busyInsights ? 'Generating…' : 'Generate Insights'}
       </button>
 
-      {msg && <span className="text-sm text-gray-600 ml-2">{msg}</span>}
+      {msg && <span className="text-sm ml-2">{msg}</span>}
     </div>
   )
 }
