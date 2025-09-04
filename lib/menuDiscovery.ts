@@ -1,88 +1,78 @@
 // lib/menuDiscovery.ts
 import { load as loadHTML } from 'cheerio'
-import { fetchHtml } from './http'
+import { fetch } from 'undici'
 
-const CANDIDATE_KEYWORDS = [
-  'menu',
-  'our-menu',
-  'food',
-  'drinks',
-  'beverages',
-  'order',
-  'order-online',
-  'order-now',
-  'eat',
-  'dine',
-  'breakfast',
-  'lunch',
-  'dinner',
-]
+export type DiscoveredLink = { url: string; label?: string; score?: number }
 
-const BAD_EXT = /\.(jpg|jpeg|png|gif|svg|webp|css|js|ico|woff2?|ttf|eot)(\?.*)?$/i
+const BAD_HOST_KEYWORDS =
+  /(locations?|store|reservations?|book|hours?|contact|about|events?|gallery)/i
+const MENU_HINT = /(menu|menus|order|eat|food|drinks?|beverage|cocktails?|wine|beer|bar|pdf)/i
+const IMG_OK = /\.(?:jpe?g|png|webp)(?:$|\?)/i
 
-function isCandidateAnchorText(t: string) {
-  const s = t.toLowerCase()
-  if (s.length < 3) return false
-  return CANDIDATE_KEYWORDS.some((k) => s.includes(k))
+function scoreUrl(u: URL, label: string) {
+  const p = u.pathname.toLowerCase()
+  let s = 0
+  // Positive signals (menus)
+  if (/\/menu(s)?\/?$/.test(p)) s += 8
+  if (/\/(all-day|allday|main|dinner|lunch|brunch|drinks|beverage|bar|dessert|kids)\b/.test(p))
+    s += 5
+  if (MENU_HINT.test(p)) s += 3
+  if (MENU_HINT.test(label)) s += 2
+  if (/\.(pdf)$/.test(p)) s += 6
+  if (IMG_OK.test(p)) s += 4
+
+  // Negative: obvious location/index pages
+  if (BAD_HOST_KEYWORDS.test(p) && !MENU_HINT.test(p)) s -= 6
+  if (/\/(location|locations)\/[^/]+\/?$/.test(p)) s -= 8
+  return s
 }
 
-function scoreHref(href: string) {
-  const h = href.toLowerCase()
-  if (BAD_EXT.test(h)) return -10
-  let score = 0
-  for (const k of CANDIDATE_KEYWORDS) if (h.includes(k)) score += 2
-  if (h.includes('/menu')) score += 4
-  if (h.includes('/order')) score += 3
-  if (h.endsWith('.pdf')) score += 5
-  return score
-}
-
-export async function discoverMenuUrl(seedUrl: string): Promise<string | null> {
+export async function discoverMenuLinks(startUrl: string): Promise<DiscoveredLink[]> {
+  const out: DiscoveredLink[] = []
   try {
-    const base = new URL(seedUrl)
-    const { html } = await fetchHtml(seedUrl)
+    const res = await fetch(startUrl, { redirect: 'follow' })
+    if (!res.ok) return [{ url: startUrl }]
+    const html = await res.text()
     const $ = loadHTML(html)
+    const base = new URL(startUrl)
 
-    // JSON-LD: look for Restaurant w/ hasMenu/menu
-    let best: string | null = null
-    let bestScore = -1
-
-    $('script[type="application/ld+json"]').each((_, el) => {
+    $('a[href], img[src]').each((_, el) => {
+      const raw = $(el).attr('href') || $(el).attr('src') || ''
+      if (!raw) return
+      let abs: string
       try {
-        const obj = JSON.parse($(el).text() || '{}')
-        const arr = Array.isArray(obj) ? obj : [obj]
-        for (const node of arr) {
-          const maybe = node?.hasMenu || node?.menu
-          const candidates = Array.isArray(maybe) ? maybe : maybe ? [maybe] : []
-          for (const m of candidates) {
-            const href = typeof m === 'string' ? m : m?.url
-            if (!href) continue
-            const abs = new URL(href, base).toString()
-            const sc = scoreHref(abs) + 6 // JSON-LD bonus
-            if (sc > bestScore) {
-              bestScore = sc
-              best = abs
-            }
-          }
-        }
-      } catch {}
-    })
-
-    // Anchors with menu-like text/href
-    $('a[href]').each((_, a) => {
-      const href = $(a).attr('href')!
-      const text = $(a).text() || ''
-      const abs = new URL(href, base).toString()
-      let sc = scoreHref(abs)
-      if (isCandidateAnchorText(text)) sc += 3
-      if (sc > bestScore) {
-        bestScore = sc
-        best = abs
+        abs = new URL(raw, base).toString()
+      } catch {
+        return
       }
+      const u = new URL(abs)
+      // stay on same site
+      if (u.hostname !== base.hostname) return
+
+      const label = ($(el).text() || $(el).attr('alt') || '').trim()
+      const looksMenuish =
+        MENU_HINT.test(u.pathname) || MENU_HINT.test(label) || IMG_OK.test(u.pathname)
+      if (!looksMenuish) return
+
+      const score = scoreUrl(u, label)
+      out.push({ url: u.toString(), label, score })
     })
 
-    return best
+    // include homepage as fallback
+    out.push({ url: startUrl, score: 0 })
   } catch {
-    return null
+    out.push({ url: startUrl, score: 0 })
   }
+
+  // de-dupe + sort best first
+  const seen = new Set<string>()
+  const deduped = out.filter((l) => {
+    const key = l.url.replace(/[#?].*$/, '')
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+
+  deduped.sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+  return deduped
 }

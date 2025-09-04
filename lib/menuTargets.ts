@@ -3,82 +3,52 @@ import { discoverMenuLinks } from './menuDiscovery'
 
 type CompRow = {
   id: string
+  name?: string | null
   website?: string | null
+  external_urls?: any | null
   data?: any | null
 }
 
-export type Provider =
-  | 'yelp'
-  | 'doordash'
-  | 'ubereats'
-  | 'grubhub'
-  | 'toast'
-  | 'square'
-  | 'clover'
-  | 'menu'
-  | 'site'
+// prefer marketplaces with structured menus, then toast/square/clover, then discovered links, then website
+const ORDER = ['doordash', 'ubereats', 'grubhub', 'yelp', 'toast', 'square', 'clover']
 
-export type MenuTarget = {
-  id: string
-  url: string
-  provider: Provider
-}
-
-const providerScore: Record<Provider, number> = {
-  doordash: 10,
-  ubereats: 9,
-  grubhub: 8,
-  yelp: 7,
-  toast: 6,
-  square: 5,
-  clover: 5,
-  menu: 4,
-  site: 1,
-}
-
-function explicitFromData(c: CompRow): MenuTarget | null {
-  const d = c?.data || {}
-  if (d?.yelp_url)
-    return { id: c.id, url: String(d.yelp_url).replace(/\/+$/, '') + '/menu', provider: 'yelp' }
-  if (d?.doordash_url) return { id: c.id, url: String(d.doordash_url), provider: 'doordash' }
-  if (d?.ubereats_url) return { id: c.id, url: String(d.ubereats_url), provider: 'ubereats' }
-  if (d?.grubhub_url) return { id: c.id, url: String(d.grubhub_url), provider: 'grubhub' }
+function pickFromExternal(external?: any): string | null {
+  if (!external) return null
+  const toUrl = (v: any) => (typeof v === 'string' ? v : v?.url ? String(v.url) : null)
+  for (const key of ORDER) {
+    const v = external[key]
+    if (!v) continue
+    if (Array.isArray(v)) {
+      const first = toUrl(v[0])
+      if (first) return first
+    } else {
+      const u = toUrl(v)
+      if (u) return u
+    }
+  }
   return null
 }
 
-export async function targetsForSearch(comps: CompRow[]): Promise<MenuTarget[]> {
-  const out: MenuTarget[] = []
-  for (const c of comps) {
-    const t = explicitFromData(c)
-    if (t) {
-      out.push(t)
-      continue
-    }
-    const site = (c.website || '').trim()
-    if (!site) continue
-    const discovered = await discoverMenuLinks(site)
-    const best = discovered.sort(
-      (a, b) => (providerScore[b.provider] ?? 0) - (providerScore[a.provider] ?? 0),
-    )[0]
-    out.push(
-      best
-        ? { id: c.id, url: best.url, provider: best.provider }
-        : { id: c.id, url: site, provider: 'site' },
-    )
-  }
-  return out
-}
+export async function targetForCompetitor(comp: CompRow): Promise<string | null> {
+  // 1) external_urls preferred
+  const ext = pickFromExternal(comp.external_urls)
+  if (ext) return ext
 
-export async function targetForCompetitor(c: CompRow): Promise<MenuTarget | null> {
-  const t = explicitFromData(c)
-  if (t) return t
-  const site = (c.website || '').trim()
-  if (!site) return null
-  const discovered = await discoverMenuLinks(site)
-  const best = discovered.sort(
-    (a, b) => (providerScore[b.provider] ?? 0) - (providerScore[a.provider] ?? 0),
-  )[0]
-  return best
-    ? { id: c.id, url: best.url, provider: best.provider }
-    : { id: c.id, url: site, provider: 'site' }
+  // 2) data.links fallback (legacy shape)
+  const links = (comp?.data?.links ?? []) as Array<string | { url: string }>
+  if (Array.isArray(links) && links.length) {
+    const first = links[0]
+    if (typeof first === 'string') return first
+    if (first && typeof first === 'object' && 'url' in first && (first as any).url)
+      return String((first as any).url)
+  }
+
+  // 3) try to discover a menu URL from the website
+  if (comp.website) {
+    const list = await discoverMenuLinks(comp.website)
+    if (list.length) return list[0].url
+    return comp.website
+  }
+
+  return null
 }

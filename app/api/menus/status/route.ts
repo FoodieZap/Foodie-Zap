@@ -22,7 +22,7 @@ export async function GET(req: Request) {
   try {
     const { data, error } = await sb
       .from('menus')
-      .select('avg_price, top_items, source_url, updated_at')
+      .select('avg_price, top_items, source_url, updated_at, sectioned_menu, metrics')
       .eq('competitor_id', competitorId)
       .maybeSingle()
 
@@ -35,6 +35,8 @@ export async function GET(req: Request) {
       top_items: data?.top_items ?? null,
       source_url: data?.source_url ?? null,
       updated_at: data?.updated_at ?? null,
+      sectioned_menu: data?.sectioned_menu ?? null,
+      metrics: data?.metrics ?? null,
     })
   } catch (e: any) {
     console.error('status error:', e)

@@ -3,6 +3,13 @@
 import { useEffect, useMemo, useState } from 'react'
 
 type MenuItem = { name: string; price?: number | null }
+type Section = { name: string; items: Array<{ name: string; price?: number | null }> }
+type Metrics = {
+  avg_ticket: number | null
+  by_section: Record<string, { avg: number; count: number }>
+}
+type SourceHit = { url: string; title?: string; source?: string }
+
 type StatusResp = {
   ok: boolean
   ready: boolean
@@ -10,7 +17,11 @@ type StatusResp = {
   top_items: MenuItem[] | null
   source_url: string | null
   updated_at: string | null
+  sectioned_menu?: Section[] | null
+  metrics?: Metrics | null
+  sources?: Array<{ url: string; title?: string; source?: string }> | null
 }
+
 type ScrapeResp = {
   ok: boolean
   competitorId: string | null
@@ -19,13 +30,23 @@ type ScrapeResp = {
   top_items: MenuItem[] | null
   source: string
   item_count: number
+  sectioned_menu?: Section[] | null
+  metrics?: Metrics | null
+  sources?: Array<{ url: string; title?: string; source?: string }> | null
 }
 
 export default function MenuSection({ competitorId }: { competitorId: string }) {
   const [avg, setAvg] = useState<number | null>(null)
   const [items, setItems] = useState<MenuItem[] | null>(null)
+  const [sections, setSections] = useState<Section[] | null>(null)
+  const [metrics, setMetrics] = useState<Metrics | null>(null)
   const [sourceUrl, setSourceUrl] = useState<string | null>(null)
   const [updatedAt, setUpdatedAt] = useState<string | null>(null)
+  const [sources, setSources] = useState<Array<{
+    url: string
+    title?: string
+    source?: string
+  }> | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [polling, setPolling] = useState(false)
@@ -35,18 +56,21 @@ export default function MenuSection({ competitorId }: { competitorId: string }) 
     const r = await fetch(`/api/menus/status?competitorId=${competitorId}`, { cache: 'no-store' })
     const j: StatusResp = await r.json()
 
-    // ⬇️ Only update UI if the DB actually has something (ready),
-    // or the payload contains data (defensive in case of partial writes).
     const hasData =
-      j.ready || j.avg_price != null || (Array.isArray(j.top_items) && j.top_items.length > 0)
+      j.ready ||
+      j.avg_price != null ||
+      (Array.isArray(j.top_items) && j.top_items.length > 0) ||
+      (Array.isArray(j.sectioned_menu) && j.sectioned_menu.length > 0)
 
     if (j.ok && hasData) {
       setAvg(j.avg_price ?? null)
       setItems(j.top_items ?? null)
+      setSections(j.sectioned_menu ?? null)
+      setMetrics(j.metrics ?? null)
       setSourceUrl(j.source_url ?? null)
       setUpdatedAt(j.updated_at ?? null)
+      setSources(j.sources ?? null)
     }
-
     return Boolean(j.ready)
   }
 
@@ -56,7 +80,6 @@ export default function MenuSection({ competitorId }: { competitorId: string }) 
       setError(null)
       setLastItemCount(null)
 
-      // Kick off scrape for THIS competitor
       const res = await fetch('/api/menus/scrape-one', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -67,14 +90,16 @@ export default function MenuSection({ competitorId }: { competitorId: string }) 
         throw new Error(`Scrape failed (${res.status}) ${t}`)
       }
 
-      // IMMEDIATE RENDER from POST result
       const s: ScrapeResp = await res.json()
       setAvg(s.avg_price ?? null)
       setItems(s.top_items ?? null)
+      setSections(s.sectioned_menu ?? null)
+      setMetrics(s.metrics ?? null)
       setSourceUrl(s.targetUrl ?? null)
+      setSources(s.sources ?? null)
       setLastItemCount(typeof s.item_count === 'number' ? s.item_count : null)
 
-      // Then poll DB until we confirm it’s saved (or we time out)
+      // poll status briefly to catch DB upsert updates
       setPolling(true)
       let ready = false
       for (let i = 0; i < 15; i++) {
@@ -90,13 +115,14 @@ export default function MenuSection({ competitorId }: { competitorId: string }) 
     }
   }
 
-  // Load any existing menu when the page opens
   useEffect(() => {
     readStatus().catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [competitorId])
 
-  const hasMenu = useMemo(() => (items?.length ?? 0) > 0 || avg != null, [items, avg])
+  const hasMenu = useMemo(() => {
+    return (items?.length ?? 0) > 0 || (sections?.length ?? 0) > 0 || avg != null
+  }, [items, sections, avg])
 
   return (
     <section className="rounded border bg-white p-5 space-y-4">
@@ -129,19 +155,34 @@ export default function MenuSection({ competitorId }: { competitorId: string }) 
         </p>
       )}
 
-      {/* tiny debug/status line to help you validate */}
-      {(lastItemCount != null || sourceUrl) && (
-        <p className="text-xs text-gray-500">
-          {lastItemCount != null ? <>Found {lastItemCount} items.</> : null}{' '}
+      {(lastItemCount != null || sourceUrl || (sources?.length ?? 0) > 0) && (
+        <div className="text-xs text-gray-500 space-y-1">
+          {lastItemCount != null ? <p>Found {lastItemCount} items.</p> : null}
           {sourceUrl ? (
-            <>
-              Source:{' '}
+            <p>
+              Primary source:{' '}
               <a className="underline" href={sourceUrl} target="_blank" rel="noreferrer">
                 {sourceUrl}
               </a>
-            </>
+            </p>
           ) : null}
-        </p>
+          {(sources?.length ?? 0) > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {sources!.slice(0, 8).map((s, i) => (
+                <a
+                  key={i}
+                  className="underline truncate max-w-[22rem]"
+                  href={s.url}
+                  title={s.title || s.url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {(s.source ? s.source + ': ' : '') + (s.title || s.url)}
+                </a>
+              ))}
+            </div>
+          ) : null}
+        </div>
       )}
 
       {hasMenu && (
@@ -157,16 +198,28 @@ export default function MenuSection({ competitorId }: { competitorId: string }) 
             </p>
           )}
 
-          {items && items.length > 0 && (
-            <div className="divide-y rounded border">
-              {items.slice(0, 20).map((it, idx) => (
-                <div key={idx} className="flex items-baseline justify-between px-3 py-2">
-                  <div className="text-sm">{it.name}</div>
-                  {it.price != null && (
-                    <div className="text-sm tabular-nums">${Number(it.price).toFixed(2)}</div>
-                  )}
-                </div>
-              ))}
+          {sections && sections.length > 0 && (
+            <div className="mt-4 space-y-2">
+              <h3 className="text-sm font-semibold">Full menu (AI)</h3>
+              <div className="rounded border divide-y">
+                {sections.map((sec, i) => (
+                  <details key={i} className="px-3 py-2">
+                    <summary className="cursor-pointer text-sm font-medium">
+                      {sec.name} <span className="text-gray-500">({sec.items.length})</span>
+                    </summary>
+                    <ul className="mt-2 space-y-1">
+                      {sec.items.map((it, j) => (
+                        <li key={j} className="flex items-baseline justify-between text-sm">
+                          <span>{it.name}</span>
+                          {typeof it.price === 'number' && (
+                            <span className="tabular-nums">${it.price.toFixed(2)}</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                ))}
+              </div>
             </div>
           )}
         </div>
